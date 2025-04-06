@@ -1,7 +1,5 @@
 # 軟體品質儀表板 (Software Quality Dashboard)
 
-![Dashboard Preview](debug.png)
-
 ## 專案簡介
 Streamlit 開發的軟體品質監控系統，幫助 QA、PM 與開發團隊追蹤測試與缺陷指標。資料來源為本地 CSV 檔案，支援多專案比較分析。
 
