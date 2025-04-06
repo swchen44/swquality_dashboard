@@ -1,0 +1,27 @@
+{
+  "metrics": {
+    "Pass_Rate(%)": {
+      "threshold": 90,
+      "higher_better": true
+    },
+    "Open_Bugs": {
+      "threshold": 10,
+      "higher_better": false
+    },
+    "Critical_Bugs": {
+      "threshold": 2,
+      "higher_better": false
+    },
+    "Code_Coverage": {
+      "threshold": 80,
+      "higher_better": true
+    }
+  },
+  "weights": {
+    "Pass_Rate(%)": 0.3,
+    "Open_Bugs": 0.2,
+    "Critical_Bugs": 0.3,
+    "Code_Coverage": 0.2
+  },
+  "description": "## Project10 專案說明\n\n- **專案目標**: 開發10代核心系統\n- **技術棧**: Python, Streamlit, AWS\n- [需求文件](https://example.com/project10/requirements)\n- [GitHub倉庫](https://github.com/company/project10)\n- **重要里程碑**: \n  - 需求分析: 2025/015/01\n  - 系統設計: 2025/016/15\n  - 正式上線: 2025/10/010"
+}
