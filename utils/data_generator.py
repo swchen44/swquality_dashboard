@@ -3,6 +3,32 @@ import numpy as np
 from datetime import datetime, timedelta
 import os
 
+def generate_module_coverage_data(project_name):
+    start_date = datetime(2024, 2, 1)
+    end_date = datetime(2025, 12, 1)
+    date_range = pd.date_range(start_date, end_date)
+    
+    # 為每個日期生成6個module的資料
+    data = []
+    for date in date_range:
+        for module_num in range(1, 7):
+            total_lines = np.random.randint(101, 1000)  # Minimum 101 to ensure covered_lines can be <= total_lines
+            covered_lines = np.random.randint(100, total_lines + 1)  # +1 to include total_lines
+            coverage = round((covered_lines / total_lines) * 100, 2)
+            
+            data.append({
+                'date': date.strftime('%Y/%m/%d'),
+                'module_name': f'm{module_num}',
+                'covered_line_number': covered_lines,
+                'total_line_number': total_lines,
+                'coverage_percentage': coverage
+            })
+    
+    df = pd.DataFrame(data)
+    os.makedirs(f'data/{project_name}', exist_ok=True)
+    df.to_csv(f'data/{project_name}/module_coverage.csv', index=False)
+    return df
+
 def generate_project_data(project_name, base_value):
     start_date = datetime(2024, 1, 1)
     end_date = datetime(2024, 12, 31)
@@ -48,6 +74,9 @@ def generate_project_data(project_name, base_value):
     # 儲存CSV
     os.makedirs(f'data/{project_name}', exist_ok=True)
     df.to_csv(f'data/{project_name}/sample_qa_dashboard.csv', index=False)
+    
+    # 生成module coverage資料
+    generate_module_coverage_data(project_name)
     return df
 
 # 生成10個專案資料

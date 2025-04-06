@@ -4,21 +4,34 @@ from utils.project_config import load_project_config
 def calculate_quality_score(project_name, metrics):
     """計算專案品質評分"""
     config = load_project_config(project_name)
-    if not config:
-        return None
+    if not config or not isinstance(metrics, dict):
+        return {'score': 0, 'grade': 'N/A'}
     
     total_score = 0
+    valid_metrics = 0
+    
     for metric, props in config['metrics'].items():
-        value = metrics.get(metric, 0)
-        threshold = props['threshold']
-        weight = config['weights'].get(metric, 0)
-        
-        if props['higher_better']:
-            normalized = min(value / threshold, 1.5)  # 最高不超過閾值1.5倍
-        else:
-            normalized = min(threshold / max(value, 1), 1.5)  # 避免除以0
+        if metric not in metrics or metrics[metric] is None:
+            continue
             
-        total_score += normalized * weight
+        threshold = props.get('threshold', 100)
+        weight = config['weights'].get(metric, 0)
+        value = metrics[metric]
+        
+        try:
+            if props.get('higher_better', True):
+                normalized = min(float(value) / float(threshold), 1.5)
+            else:
+                normalized = min(float(threshold) / max(float(value), 1), 1.5)
+                
+            total_score += normalized * weight
+            valid_metrics += 1
+        except (ValueError, TypeError, ZeroDivisionError):
+            continue
+    
+    # 如果有可用metrics則計算，否則返回N/A
+    if valid_metrics == 0:
+        return {'score': 0, 'grade': 'N/A'}
     
     # 轉換為百分制
     final_score = round(total_score * 100, 1)
