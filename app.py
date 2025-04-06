@@ -141,10 +141,12 @@ def main():
                         st.markdown(f"<span style='{project[title]['style']}'>{project[title]['value']}</span>", 
                                   unsafe_allow_html=True)
         
-            # 顯示專案說明
+            # 顯示專案說明連結
             if 'description' in config and config['description']:
-                with st.expander("專案說明", expanded=False):
-                    st.markdown(config['description'])
+                st.markdown(
+                    f"[專案詳情](http://localhost:8502/?project={project['專案名稱']})",
+                    unsafe_allow_html=True
+                )
         
     
     # 趨勢圖表區
