@@ -337,12 +337,12 @@ def main():
                         st.markdown(f"<span style='{project[title]['style']}'>{project[title]['value']}</span>", 
                                   unsafe_allow_html=True)
         
-            # 顯示專案說明連結
+            # 顯示專案說明和詳情連結
             if 'description' in config and config['description']:
-                st.markdown(
-                    f"[專案詳情](http://localhost:8502/?project={project['專案名稱']})",
-                    unsafe_allow_html=True
-                )
+                with st.expander("專案詳情"):
+                    st.write(config['description'])
+                    if len(selected_projects) == 1:
+                        st.markdown(f"[查看完整專案詳情](/project.py?project={selected_projects[0]})", unsafe_allow_html=True)
         
     
     # 趨勢圖表區

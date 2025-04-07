@@ -29,14 +29,11 @@ def calculate_quality_score(project_name, metrics):
         except (ValueError, TypeError, ZeroDivisionError):
             continue
     
-    # 如果有可用metrics則計算，否則返回N/A
     if valid_metrics == 0:
         return {'score': 0, 'grade': 'N/A'}
     
-    # 轉換為百分制
     final_score = round(total_score * 100, 1)
     
-    # 評定等級 (防禦性程式設計)
     grade_scale = config.get('style_rules', {}).get('grade_scale', {
         'A': 90, 'B': 80, 'C': 70, 'D': 60, 'E': 0
     })
@@ -53,3 +50,34 @@ def get_style(value, threshold, higher_better):
         return "color: green" if value >= threshold else "color: red"
     else:
         return "color: green" if value <= threshold else "color: red"
+
+def load_module_coverage(project_name):
+    """載入並返回指定項目的模組覆蓋率數據
+    
+    此函數會從data/{project_name}/module_coverage.csv讀取模組覆蓋率數據，
+    並將日期欄位轉換為datetime格式。
+    
+    Args:
+        project_name (str): 項目名稱，對應data目錄下的子目錄
+        
+    Returns:
+        pandas.DataFrame or None: 包含模組覆蓋率數據的DataFrame結構如下:
+            - date: 測試日期 (datetime)
+            - module_name: 模組名稱 
+            - covered_line_number: 覆蓋行數
+            - total_line_number: 總行數
+            - coverage_percentage: 覆蓋率
+            找不到文件時返回None
+    """
+    file_path = f'data/{project_name}/module_coverage.csv'
+    if os.path.exists(file_path):
+        try:
+            df = pd.read_csv(file_path)
+            df['date'] = pd.to_datetime(df['date'])
+            return df
+        except Exception as e:
+            logging.error(f"載入模組覆蓋率數據失敗: {str(e)}", exc_info=True)
+            raise
+    
+    logging.warning(f"模組覆蓋率文件不存在: {file_path}")
+    return None
