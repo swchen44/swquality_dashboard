@@ -49,33 +49,33 @@ def setup_logging():
     
     logging.info("日志系统初始化完成")
 
-"""
-Software Quality Dashboard Application
+# 
+# Software Quality Dashboard Application
 
-目的:
-    本應用程序提供了一個完整的軟體品質監控儀表板，用於追蹤和分析多個專案的品質指標，
-    包括測試覆蓋率、缺陷統計和preflight測試結果等。
+# 目的:
+#     本應用程序提供了一個完整的軟體品質監控儀表板，用於追蹤和分析多個專案的品質指標，
+#     包括測試覆蓋率、缺陷統計和preflight測試結果等。
 
-功能:
-    - 展示專案品質概覽卡片
-    - 提供測試通過率、缺陷趨勢和代碼覆蓋率趨勢圖
-    - 顯示模組級別的覆蓋率詳細資訊
-    - 整合preflight測試結果分析
-    - 支援多專案數據比較和篩選
+# 功能:
+#     - 展示專案品質概覽卡片
+#     - 提供測試通過率、缺陷趨勢和代碼覆蓋率趨勢圖
+#     - 顯示模組級別的覆蓋率詳細資訊
+#     - 整合preflight測試結果分析
+#     - 支援多專案數據比較和篩選
 
-運作原理:
-    1. 從CSV檔案載入專案數據
-    2. 應用用戶選擇的篩選條件
-    3. 計算各種品質指標
-    4. 使用Plotly生成互動式圖表
-    5. 使用Streamlit建立web儀表板
+# 運作原理:
+#     1. 從CSV檔案載入專案數據
+#     2. 應用用戶選擇的篩選條件
+#     3. 計算各種品質指標
+#     4. 使用Plotly生成互動式圖表
+#     #5. 使用Streamlit建立web儀表板
 
-使用範例:
-    $ streamlit run app.py
+# 使用範例:
+#     $ streamlit run app.py
 
-API文件:
-    參見各函數和方法的docstrings
-"""
+# API文件:
+#     參見各函數和方法的docstrings
+# 
 
 import streamlit as st
 import pandas as pd
