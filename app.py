@@ -1,3 +1,82 @@
+# 必須放在最前面的Streamlit配置
+import streamlit as st
+st.set_page_config(
+    page_title="Software Quality Dashboard",
+    page_icon="📊",
+    layout="wide"
+)
+
+import logging
+import logging.handlers
+from datetime import datetime
+
+# 配置日志系统
+def setup_logging():
+    """配置应用程序日志系统
+    
+    设置:
+    - 日志级别: DEBUG
+    - 输出到文件: logs/app.log (每天轮换，保留7天)
+    - 输出到控制台
+    - 日志格式: 时间 - 级别 - 文件名:行号 - 消息
+    """
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    
+    # 创建logs目录
+    os.makedirs('logs', exist_ok=True)
+    
+    # 文件handler (每天轮换)
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        'logs/app.log', when='midnight', backupCount=7, encoding='utf-8'
+    )
+    file_handler.setLevel(logging.DEBUG)
+    
+    # 控制台handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    
+    # 日志格式
+    formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    logging.info("日志系统初始化完成")
+
+"""
+Software Quality Dashboard Application
+
+目的:
+    本應用程序提供了一個完整的軟體品質監控儀表板，用於追蹤和分析多個專案的品質指標，
+    包括測試覆蓋率、缺陷統計和preflight測試結果等。
+
+功能:
+    - 展示專案品質概覽卡片
+    - 提供測試通過率、缺陷趨勢和代碼覆蓋率趨勢圖
+    - 顯示模組級別的覆蓋率詳細資訊
+    - 整合preflight測試結果分析
+    - 支援多專案數據比較和篩選
+
+運作原理:
+    1. 從CSV檔案載入專案數據
+    2. 應用用戶選擇的篩選條件
+    3. 計算各種品質指標
+    4. 使用Plotly生成互動式圖表
+    5. 使用Streamlit建立web儀表板
+
+使用範例:
+    $ streamlit run app.py
+
+API文件:
+    參見各函數和方法的docstrings
+"""
+
 import streamlit as st
 import pandas as pd
 import os
@@ -7,22 +86,66 @@ from datetime import datetime
 from utils.quality_metrics import calculate_quality_score, get_style
 from utils.project_config import load_project_config
 
-# 載入 module coverage 資料
-@st.cache_data
-def load_module_coverage(project_name):
-    file_path = f'data/{project_name}/module_coverage.csv'
+@st.cache_data  
+def load_preflight_data(project_name):
+    """載入並返回指定項目的preflight測試結果
+    
+    Args:
+        project_name (str): 項目名稱，對應data目錄下的子目錄
+        
+    Returns:
+        pandas.DataFrame or None: 包含preflight測試結果的DataFrame
+            找不到文件時返回None
+    """
+    file_path = f'data/{project_name}/preflight_wut_result.csv'
     if os.path.exists(file_path):
-        df = pd.read_csv(file_path)
-        df['date'] = pd.to_datetime(df['date'])
-        return df
+        try:
+            df = pd.read_csv(file_path)
+            df['date'] = pd.to_datetime(df['date'])
+            return df
+        except Exception as e:
+            logging.error(f"載入preflight數據失敗: {str(e)}", exc_info=True)
+            raise
+    
+    logging.warning(f"preflight文件不存在: {file_path}")
     return None
 
-# 設定頁面配置
-st.set_page_config(
-    page_title="Software Quality Dashboard",
-    page_icon="📊",
-    layout="wide"
-)
+@st.cache_data
+def load_module_coverage(project_name):
+    """載入並返回指定項目的模組覆蓋率數據
+    
+    此函數會從data/{project_name}/module_coverage.csv讀取模組覆蓋率數據，
+    並將日期欄位轉換為datetime格式。
+    
+    Args:
+        project_name (str): 項目名稱，對應data目錄下的子目錄
+        
+    Returns:
+        pandas.DataFrame or None: 包含模組覆蓋率數據的DataFrame結構如下:
+            - date: 測試日期 (datetime)
+            - module_name: 模組名稱 
+            - covered_line_number: 覆蓋行數
+            - total_line_number: 總行數
+            - coverage_percentage: 覆蓋率
+            找不到文件時返回None
+            
+    Example:
+        >>> df = load_module_coverage("project1")
+        >>> print(df.head())
+    """
+    file_path = f'data/{project_name}/module_coverage.csv'
+    if os.path.exists(file_path):
+        try:
+            df = pd.read_csv(file_path)
+            df['date'] = pd.to_datetime(df['date'])
+            logging.info(f"成功載入preflight數據，行數: {len(df)}")
+            return df
+        except Exception as e:
+            logging.error(f"載入preflight數據失敗: {str(e)}", exc_info=True)
+            raise
+    
+    logging.warning(f"preflight文件不存在: {file_path}")
+    return None
 
 # 載入所有專案資料
 @st.cache_data
@@ -96,6 +219,25 @@ def main():
         (df['Date'] <= end_date)
     ]
     
+    # 載入preflight數據
+    all_preflight = None
+    if len(selected_projects) > 0:
+        preflight_data = []
+        for project in selected_projects:
+            pf_df = load_preflight_data(project)
+            if pf_df is not None:
+                pf_df['Project'] = project
+                preflight_data.append(pf_df)
+        
+        if len(preflight_data) > 0:
+            all_preflight = pd.concat(preflight_data)
+            # 過濾preflight數據
+            if len(date_range) == 2:
+                all_preflight = all_preflight[
+                    (all_preflight['date'] >= start_date) & 
+                    (all_preflight['date'] <= end_date)
+                ]
+    
     # 主頁面標題
     st.title('軟體品質儀表板')
     st.markdown("---")
@@ -117,6 +259,15 @@ def main():
             ('Critical_Bugs', '嚴重缺陷', '{:.0f}'),
             ('Code_Coverage', '代碼覆蓋率', '{:.1f}%')
         ]
+        
+        # 添加preflight指標
+        if all_preflight is not None:
+            metrics.extend([
+                ('preflight_build_fail', 'Preflight建置失敗', '{:.0f}'),
+                ('preflight_wut_fail', 'Preflight測試失敗', '{:.0f}'),
+                ('preflight_pass', 'Preflight通過', '{:.0f}'),
+                ('preflight_total', 'Preflight總數', '{:.0f}')
+            ])
         
         # 顯示所有專案數據
         all_projects_data = []
@@ -140,10 +291,31 @@ def main():
             for col, title, fmt in metrics:
                 value = project_data.get(col)
                 props = config['metrics'].get(col, {})
+                
+                # 處理preflight數據
+                if col.startswith('preflight_') and all_preflight is not None:
+                    pf_project = all_preflight[all_preflight['Project'] == project]
+                    if col == 'preflight_total':
+                        value = len(pf_project)
+                    elif col == 'preflight_pass':
+                        value = len(pf_project[pf_project['type'] == 'pass'])
+                    elif col == 'preflight_wut_fail':
+                        value = len(pf_project[pf_project['type'] == 'wut fail'])
+                    elif col == 'preflight_build_fail':
+                        value = len(pf_project[pf_project['type'] == 'build fail'])
+                    
+                    # Preflight總數>=1顯示綠色
+                    if col == 'preflight_total':
+                        style = "color: green" if (value or 0) >= 1 else "color: red"
+                    else:
+                        style = get_style(value or 0, props.get('threshold',0), props.get('higher_better',True))
+                else:
+                    style = get_style(value or 0, props.get('threshold',0), props.get('higher_better',True))
+                
                 formatted_value = "N/A" if value is None else fmt.format(value)
                 row_data[title] = {
                     'value': formatted_value,
-                    'style': get_style(value or 0, props.get('threshold',0), props.get('higher_better',True))
+                    'style': style
                 }
             row_data['品質評分'] = f"{quality['score']} ({quality['grade']})"
             all_projects_data.append(row_data)
@@ -151,9 +323,16 @@ def main():
         # 為每個專案顯示指標卡片
         for project in all_projects_data:
             with st.expander(f"{project['專案名稱']} - 品質評分: {project['品質評分']}", expanded=True):
-                cols = st.columns(6)
+                # 根據metrics數量動態調整列數 (每行最多4列)
+                num_cols = min(len(metrics), 4)
+                cols = st.columns(num_cols)
                 for i, (_, title, _) in enumerate(metrics):
-                    with cols[i]:
+                    # 計算當前應顯示的列索引
+                    col_idx = i % num_cols
+                    # 當列索引歸零時創建新行
+                    if col_idx == 0 and i > 0:
+                        cols = st.columns(num_cols)
+                    with cols[col_idx]:
                         st.markdown(f"**{title}**")
                         st.markdown(f"<span style='{project[title]['style']}'>{project[title]['value']}</span>", 
                                   unsafe_allow_html=True)

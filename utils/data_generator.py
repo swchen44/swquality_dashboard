@@ -29,6 +29,62 @@ def generate_module_coverage_data(project_name):
     df.to_csv(f'data/{project_name}/module_coverage.csv', index=False)
     return df
 
+def generate_preflight_data(project_name):
+    """生成preflight測試結果數據"""
+    if project_name in ['project1', 'project3', 'project5']:
+        return None
+        
+    start_date = datetime(2024, 2, 1)
+    end_date = datetime(2024, 12, 1)
+    date_range = pd.date_range(start_date, end_date)
+    
+    # 生成測試結果數據
+    data = []
+    for date in date_range:
+        # 跳過週末(周六=5, 周日=6)
+        if date.weekday() >= 5:
+            continue
+            
+        # 每天1-10筆測試結果
+        num_records = np.random.randint(1, 11)
+        for _ in range(num_records):
+            # 隨機生成測試結果
+            rand = np.random.rand()
+            if rand < 0.1:  # 10% build fail
+                test_type = 'build_fail'
+            elif rand < 0.3:  # 20% wut fail
+                test_type = 'wut_fail'
+            else:  # 70% pass
+                test_type = 'pass'
+                
+            # 失败案例列表
+            fail_cases = [
+                'TimeoutError', 
+                'AssertionError',
+                'NetworkError',
+                'ValidationError',
+                'NullPointerException',
+                'SyntaxError',
+                'TypeMismatch',
+                'MissingDependency',
+                'ConfigurationError'
+            ]
+            
+            record = {
+                'date': date.strftime('%Y/%m/%d'),
+                'type': test_type
+            }
+            
+            if test_type == 'wut fail':
+                record['wut_fail_case'] = np.random.choice(fail_cases)
+                
+            data.append(record)
+    
+    df = pd.DataFrame(data)
+    os.makedirs(f'data/{project_name}', exist_ok=True)
+    df.to_csv(f'data/{project_name}/preflight_wut_result.csv', index=False)
+    return df
+
 def generate_project_data(project_name, base_value):
     start_date = datetime(2024, 1, 1)
     end_date = datetime(2024, 12, 31)
@@ -77,6 +133,10 @@ def generate_project_data(project_name, base_value):
     
     # 生成module coverage資料
     generate_module_coverage_data(project_name)
+    
+    # 生成preflight測試結果
+    generate_preflight_data(project_name)
+    
     return df
 
 # 生成10個專案資料
