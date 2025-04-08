@@ -241,6 +241,17 @@ def main():
     # 主頁面標題
     st.title('軟體品質儀表板')
     st.markdown("---")
+
+    # 定義tooltip字典
+    title_dict = {
+        '測試執行數': '已執行的測試案例總數',
+        '測試通過數': '成功通過的測試案例數', 
+        '通過率': '測試通過百分比',
+        '開放缺陷數': '目前未解決的缺陷數量',
+        '嚴重缺陷': '嚴重等級的缺陷數量',
+        '代碼覆蓋率': '測試覆蓋的代碼百分比',
+        'Preflight WUT Summary': 'Build Fail / WUT Fail / Pass / Total'
+    }
     
     # 專案品質概覽區
     st.subheader('專案品質概覽')
@@ -260,13 +271,10 @@ def main():
             ('Code_Coverage', '代碼覆蓋率', '{:.1f}%')
         ]
         
-        # 添加preflight_wut指標
+        # 添加preflight_wut組合指標
         if all_preflight_wut is not None:
             metrics.extend([
-                ('preflight_build_fail', 'Preflight建置失敗', '{:.0f}'),
-                ('preflight_wut_fail', 'Preflight測試失敗', '{:.0f}'),
-                ('preflight_pass', 'Preflight通過', '{:.0f}'),
-                ('preflight_total', 'Preflight總數', '{:.0f}')
+                ('preflight_combined', 'Preflight WUT Summary', '{}')
             ])
         
         # 顯示所有專案數據
@@ -292,23 +300,15 @@ def main():
                 value = project_data.get(col)
                 props = config['metrics'].get(col, {})
                 
-                # 處理preflight_wut數據
-                if col.startswith('preflight_') and all_preflight_wut is not None:
+                # 處理preflight_wut組合數據
+                if col == 'preflight_combined' and all_preflight_wut is not None:
                     pf_project = all_preflight_wut[all_preflight_wut['Project'] == project]
-                    if col == 'preflight_total':
-                        value = len(pf_project)
-                    elif col == 'preflight_pass':
-                        value = len(pf_project[pf_project['type'] == 'pass'])
-                    elif col == 'preflight_wut_fail':
-                        value = len(pf_project[pf_project['type'] == 'wut fail'])
-                    elif col == 'preflight_build_fail':
-                        value = len(pf_project[pf_project['type'] == 'build fail'])
-                    
-                    # Preflight總數>=1顯示綠色
-                    if col == 'preflight_total':
-                        style = "color: green" if (value or 0) >= 1 else "color: red"
-                    else:
-                        style = get_style(value or 0, props.get('threshold',0), props.get('higher_better',True))
+                    build_fail = len(pf_project[pf_project['type'] == 'build fail'])
+                    wut_fail = len(pf_project[pf_project['type'] == 'wut fail'])
+                    passed = len(pf_project[pf_project['type'] == 'pass'])
+                    total = len(pf_project)
+                    value = f"{build_fail}/{wut_fail}/{passed}/{total}"
+                    style = "color: black"
                 else:
                     style = get_style(value or 0, props.get('threshold',0), props.get('higher_better',True))
                 
@@ -343,8 +343,14 @@ def main():
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                                 background-color: #f9f9f9;
                             ">
-                                <div style="font-weight: bold; margin-bottom: 5px;">{title}</div>
-                                <div style='{project[title]['style']}; font-size: 18px;'>{project[title]['value']}</div>
+                                <div style="font-weight: bold; margin-bottom: 5px;">
+                                    {title}
+                                    <span style="color: #666; font-size: 0.8em; margin-left: 5px;">(?)</span>
+                                </div>
+                                <div style='{project[title]["style"]}; font-size: 20px;'>
+                                    {project[title]["value"]}
+                                </div>
+                                <div style="display: none;">{title_dict.get(title, '')}</div>
                             </div>
                             """,
                             unsafe_allow_html=True
