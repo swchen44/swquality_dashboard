@@ -87,14 +87,14 @@ from utils.quality_metrics import calculate_quality_score, get_style
 from utils.project_config import load_project_config
 
 @st.cache_data  
-def load_preflight_data(project_name):
-    """載入並返回指定項目的preflight測試結果
+def load_preflight_wut_data(project_name):
+    """載入並返回指定項目的preflight_wut測試結果
     
     Args:
         project_name (str): 項目名稱，對應data目錄下的子目錄
         
     Returns:
-        pandas.DataFrame or None: 包含preflight測試結果的DataFrame
+        pandas.DataFrame or None: 包含preflight_wut測試結果的DataFrame
             找不到文件時返回None
     """
     file_path = f'data/{project_name}/preflight_wut_result.csv'
@@ -104,10 +104,10 @@ def load_preflight_data(project_name):
             df['date'] = pd.to_datetime(df['date'])
             return df
         except Exception as e:
-            logging.error(f"載入preflight數據失敗: {str(e)}", exc_info=True)
+            logging.error(f"載入preflight_wut數據失敗: {str(e)}", exc_info=True)
             raise
     
-    logging.warning(f"preflight文件不存在: {file_path}")
+    logging.warning(f"preflight_wut文件不存在: {file_path}")
     return None
 
 @st.cache_data
@@ -138,13 +138,13 @@ def load_module_coverage(project_name):
         try:
             df = pd.read_csv(file_path)
             df['date'] = pd.to_datetime(df['date'])
-            logging.info(f"成功載入preflight數據，行數: {len(df)}")
+            logging.info(f"成功載入preflight_wut數據，行數: {len(df)}")
             return df
         except Exception as e:
-            logging.error(f"載入preflight數據失敗: {str(e)}", exc_info=True)
+            logging.error(f"載入preflight_wut數據失敗: {str(e)}", exc_info=True)
             raise
     
-    logging.warning(f"preflight文件不存在: {file_path}")
+    logging.warning(f"preflight_wut文件不存在: {file_path}")
     return None
 
 # 載入所有專案資料
@@ -204,8 +204,8 @@ def main():
             max_value=max_date
         )
     
-    # 主題選擇
-    theme = st.sidebar.radio('主題模式', ['亮色', '暗色'])
+    # 強制使用亮色主題
+    theme = '亮色'
     
     # 過濾資料 - 處理日期範圍選擇不完整的情況
     if len(date_range) == 2:
@@ -219,23 +219,23 @@ def main():
         (df['Date'] <= end_date)
     ]
     
-    # 載入preflight數據
-    all_preflight = None
+    # 載入preflight_wut數據
+    all_preflight_wut = None
     if len(selected_projects) > 0:
-        preflight_data = []
+        preflight_wut_data = []
         for project in selected_projects:
-            pf_df = load_preflight_data(project)
+            pf_df = load_preflight_wut_data(project)
             if pf_df is not None:
                 pf_df['Project'] = project
-                preflight_data.append(pf_df)
+                preflight_wut_data.append(pf_df)
         
-        if len(preflight_data) > 0:
-            all_preflight = pd.concat(preflight_data)
-            # 過濾preflight數據
+        if len(preflight_wut_data) > 0:
+            all_preflight_wut = pd.concat(preflight_wut_data)
+            # 過濾preflight_wut數據
             if len(date_range) == 2:
-                all_preflight = all_preflight[
-                    (all_preflight['date'] >= start_date) & 
-                    (all_preflight['date'] <= end_date)
+                all_preflight_wut = all_preflight_wut[
+                    (all_preflight_wut['date'] >= start_date) & 
+                    (all_preflight_wut['date'] <= end_date)
                 ]
     
     # 主頁面標題
@@ -260,8 +260,8 @@ def main():
             ('Code_Coverage', '代碼覆蓋率', '{:.1f}%')
         ]
         
-        # 添加preflight指標
-        if all_preflight is not None:
+        # 添加preflight_wut指標
+        if all_preflight_wut is not None:
             metrics.extend([
                 ('preflight_build_fail', 'Preflight建置失敗', '{:.0f}'),
                 ('preflight_wut_fail', 'Preflight測試失敗', '{:.0f}'),
@@ -292,9 +292,9 @@ def main():
                 value = project_data.get(col)
                 props = config['metrics'].get(col, {})
                 
-                # 處理preflight數據
-                if col.startswith('preflight_') and all_preflight is not None:
-                    pf_project = all_preflight[all_preflight['Project'] == project]
+                # 處理preflight_wut數據
+                if col.startswith('preflight_') and all_preflight_wut is not None:
+                    pf_project = all_preflight_wut[all_preflight_wut['Project'] == project]
                     if col == 'preflight_total':
                         value = len(pf_project)
                     elif col == 'preflight_pass':
@@ -333,9 +333,22 @@ def main():
                     if col_idx == 0 and i > 0:
                         cols = st.columns(num_cols)
                     with cols[col_idx]:
-                        st.markdown(f"**{title}**")
-                        st.markdown(f"<span style='{project[title]['style']}'>{project[title]['value']}</span>", 
-                                  unsafe_allow_html=True)
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border: 1px solid #ddd;
+                                border-radius: 8px;
+                                padding: 10px;
+                                margin: 5px;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                background-color: #f9f9f9;
+                            ">
+                                <div style="font-weight: bold; margin-bottom: 5px;">{title}</div>
+                                <div style='{project[title]['style']}; font-size: 18px;'>{project[title]['value']}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
         
             # 顯示專案說明和詳情連結
             if 'description' in config and config['description']:
