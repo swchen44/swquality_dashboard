@@ -441,17 +441,24 @@ def main():
         if len(selected_projects) == 1 and all_preflight_wut is not None:
             with tab4:
                 try:
+                    logging.info(f"開始生成Preflight WUT狀態圖表 - 專案: {selected_projects[0]}")
+                    
                     # 準備數據
                     pf_data = all_preflight_wut[all_preflight_wut['Project'] == selected_projects[0]]
+                    logging.debug(f"Preflight WUT原始數據行數: {len(pf_data)}")
+                    
                     pf_counts = pf_data.groupby(['date', 'type']).size().unstack(fill_value=0)
+                    logging.debug(f"分組後數據: {pf_counts.shape}")
                     
                     # 確保所有類型都存在
                     for col in ['build fail', 'wut fail', 'pass']:
                         if col not in pf_counts.columns:
+                            logging.warning(f"缺少{col}類型數據，將初始化為0")
                             pf_counts[col] = 0
                     
                     # 重置索引並排序
                     pf_counts = pf_counts.reset_index().sort_values('date')
+                    logging.debug(f"最終圖表數據: {pf_counts.shape}")
                     
                     # 繪製堆疊長條圖
                     fig = px.bar(
@@ -468,8 +475,12 @@ def main():
                         barmode='stack'
                     )
                     st.plotly_chart(fig, use_container_width=True)
+                    logging.info("Preflight WUT狀態圖表生成成功")
+                    
                 except Exception as e:
-                    st.error(f"繪製Preflight WUT狀態圖時發生錯誤: {str(e)}")
+                    error_msg = f"繪製Preflight WUT狀態圖時發生錯誤: {str(e)}"
+                    logging.error(error_msg, exc_info=True)
+                    st.error(error_msg)
     
     # 資料表格區
     st.markdown("---")
