@@ -169,10 +169,11 @@ def main():
     # 轉換日期格式
     df['Date'] = pd.to_datetime(df['Date'])
     
-    # 解析URL參數
+    # 解析URL參數 - 處理多個project
     url_project = st.query_params.get("project", [])
     if isinstance(url_project, str):
-        url_project = [url_project]
+        # 將逗號分隔的project轉換為list
+        url_project = [p.strip() for p in url_project.split(",") if p.strip()]
     url_date_range = st.query_params.get("date_range", [])
     if isinstance(url_date_range, str):
         url_date_range = [url_date_range]
@@ -184,7 +185,17 @@ def main():
     projects = df['Project'].unique()
     
     # 設置默認選中的專案 (優先使用URL參數)
-    default_projects = url_project if url_project else projects[:3]
+    default_projects = []
+    if url_project:
+        # 過濾掉不存在的專案名稱
+        default_projects = [p for p in url_project if p in projects]
+        if len(default_projects) != len(url_project):
+            st.warning(f"部分專案不存在，已過濾: {set(url_project) - set(projects)}")
+    
+    # 如果沒有有效的URL參數，使用前3個專案作為默認
+    if not default_projects:
+        default_projects = projects[:3] if len(projects) > 0 else []
+    
     selected_projects = st.sidebar.multiselect(
         '選擇專案', 
         projects, 
