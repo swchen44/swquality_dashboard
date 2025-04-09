@@ -169,27 +169,51 @@ def main():
     # 轉換日期格式
     df['Date'] = pd.to_datetime(df['Date'])
     
+    # 解析URL參數
+    url_project = st.query_params.get("project", [])
+    if isinstance(url_project, str):
+        url_project = [url_project]
+    url_date_range = st.query_params.get("date_range", [])
+    if isinstance(url_date_range, str):
+        url_date_range = [url_date_range]
+    
     # 側邊欄設定
     st.sidebar.title('篩選控制')
     
     # 專案選擇
     projects = df['Project'].unique()
+    
+    # 設置默認選中的專案 (優先使用URL參數)
+    default_projects = url_project if url_project else projects[:3]
     selected_projects = st.sidebar.multiselect(
         '選擇專案', 
         projects, 
-        default=projects[:3]
+        default=default_projects
     )
     
     # 日期範圍選擇
     min_date = df['Date'].min().to_pydatetime()
     max_date = df['Date'].max().to_pydatetime()
     
-    # 預設時間範圍選項
-    time_period = st.sidebar.selectbox(
-        '快速選擇時間範圍',
-        ['自訂', '過去1個月', '過去2個月', '過去3個月', '過去6個月', '過去12個月'],
-        index=0
-    )
+    # 設置默認日期範圍 (優先使用URL參數)
+    if url_date_range and len(url_date_range) == 2:
+        try:
+            start_date = pd.to_datetime(url_date_range[0])
+            end_date = pd.to_datetime(url_date_range[1])
+            date_range = (start_date, end_date)
+            time_period = '自訂'
+        except:
+            time_period = st.sidebar.selectbox(
+                '快速選擇時間範圍',
+                ['自訂', '過去1個月', '過去2個月', '過去3個月', '過去6個月', '過去12個月'],
+                index=0
+            )
+    else:
+        time_period = st.sidebar.selectbox(
+            '快速選擇時間範圍',
+            ['自訂', '過去1個月', '過去2個月', '過去3個月', '過去6個月', '過去12個月'],
+            index=0
+        )
     
     # 計算預設範圍的日期
     if time_period != '自訂':
@@ -199,7 +223,7 @@ def main():
     else:
         date_range = st.sidebar.date_input(
             '自訂日期範圍',
-            value=(min_date, max_date),
+            value=date_range if 'date_range' in locals() else (min_date, max_date),
             min_value=min_date,
             max_value=max_date
         )
@@ -359,7 +383,32 @@ def main():
                     st.write(project['description'])
 
                     if len(selected_projects) == 1:
-                        st.markdown(f"[查看完整專案詳情](/app.py?project={selected_projects[0]})", unsafe_allow_html=True)
+                        # 生成包含當前篩選條件的URL
+                        url = f"/app.py?project={selected_projects[0]}&date_range={date_range[0].strftime('%Y-%m-%d')},{date_range[1].strftime('%Y-%m-%d')}"
+                        st.markdown(f"[查看完整專案詳情]({url})", unsafe_allow_html=True)
+                    elif len(selected_projects) > 1:
+                        # 顯示URL使用說明
+                        with st.expander("URL分享選項"):
+                            st.write("""
+                            **分享當前篩選結果：**
+                            
+                            1. **多專案選擇** (用逗號分隔):
+                            ```
+                            /app.py?project=project1,project2,project3
+                            ```
+                            
+                            2. **日期範圍** (開始日期,結束日期):
+                            ```
+                            &date_range=2025-01-01,2025-04-01
+                            ```
+                            
+                            3. **完整範例**:
+                            ```
+                            /app.py?project=project1,project2&date_range=2025-01-01,2025-04-01
+                            ```
+                            
+                            注意：日期格式為YYYY-MM-DD
+                            """)
         
     
     # 趨勢圖表區
