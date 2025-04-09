@@ -242,17 +242,6 @@ def main():
     st.title('軟體品質儀表板')
     st.markdown("---")
 
-    # 定義tooltip字典
-    title_dict = {
-        '測試執行數': '已執行的測試案例總數',
-        '測試通過數': '成功通過的測試案例數', 
-        '通過率': '測試通過百分比',
-        '開放缺陷數': '目前未解決的缺陷數量',
-        '嚴重缺陷': '嚴重等級的缺陷數量',
-        '代碼覆蓋率': '測試覆蓋的代碼百分比',
-        'Preflight WUT Summary': 'Build Fail / WUT Fail / Pass / Total'
-    }
-    
     # 專案品質概覽區
     st.subheader('專案品質概覽')
     if len(selected_projects) > 0:
@@ -261,20 +250,20 @@ def main():
         # 顯示所選專案清單
         st.markdown(f"**已選擇專案:** {', '.join(selected_projects)}")
         
-        # 指標表格
+        # 指標表格 (column_name, display_name, format_string, tooltip_text)
         metrics = [
-            ('Test_Executed', '測試執行數', '{:.0f}'),
-            ('Test_Passed', '測試通過數', '{:.0f}'),
-            ('Pass_Rate(%)', '通過率', '{:.1f}%'),
-            ('Open_Bugs', '開放缺陷數', '{:.0f}'),
-            ('Critical_Bugs', '嚴重缺陷', '{:.0f}'),
-            ('Code_Coverage', '代碼覆蓋率', '{:.1f}%')
+            ('Test_Executed', '測試執行數', '{:.0f}', '已執行的測試案例總數'),
+            ('Test_Passed', '測試通過數', '{:.0f}', '成功通過的測試案例數'),
+            ('Pass_Rate(%)', '通過率', '{:.1f}%', '測試通過百分比'),
+            ('Open_Bugs', '開放缺陷數', '{:.0f}', '目前未解決的缺陷數量'),
+            ('Critical_Bugs', '嚴重缺陷', '{:.0f}', '嚴重等級的缺陷數量'),
+            ('Code_Coverage', '代碼覆蓋率', '{:.1f}%', '測試覆蓋的代碼百分比')
         ]
         
         # 添加preflight_wut組合指標
         if all_preflight_wut is not None:
             metrics.extend([
-                ('preflight_combined', 'Preflight WUT Summary', '{}')
+                ('preflight_combined', 'Preflight WUT Summary', '{}', 'Build Fail / WUT Fail / Pass / Total')
             ])
         
         # 顯示所有專案數據
@@ -287,7 +276,7 @@ def main():
             else:
                 project_data = project_df.iloc[0]
             # 計算品質評分
-            metrics_dict = {col: project_data[col] for col, _, _ in metrics if col in project_data}
+            metrics_dict = {col: project_data[col] for col, _, _, _ in metrics if col in project_data}
 
             quality = calculate_quality_score(project, metrics_dict)
             
@@ -296,7 +285,7 @@ def main():
             
             # 收集專案數據
             row_data = {'專案名稱': project}
-            for col, title, fmt in metrics:
+            for col, title, fmt, _ in metrics:
                 value = project_data.get(col)
                 props = config['metrics'].get(col, {})
                 
@@ -326,39 +315,40 @@ def main():
                 # 根據metrics數量動態調整列數 (每行最多4列)
                 num_cols = min(len(metrics), 4)
                 cols = st.columns(num_cols)
-                for i, (_, title, _) in enumerate(metrics):
+                for i, (_, title, _, tooltip) in enumerate(metrics):
                     # 計算當前應顯示的列索引
                     col_idx = i % num_cols
                     # 當列索引歸零時創建新行
                     if col_idx == 0 and i > 0:
                         cols = st.columns(num_cols)
                     with cols[col_idx]:
-                        st.markdown(
-                            f"""
-                            <div style="
-                                border: 1px solid #ddd;
-                                border-radius: 8px;
-                                padding: 10px;
-                                margin: 5px;
-                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                                background-color: #f9f9f9;
-                            ">
-                                <div style="font-weight: bold; margin-bottom: 5px;">
-                                    {title}
-                                    <span style="color: #666; font-size: 0.8em; margin-left: 5px;">(?)</span>
+                        with st.container():
+                            st.markdown(
+                                f"""
+                                <div style="
+                                    border: 1px solid #ddd;
+                                    border-radius: 8px;
+                                    padding: 10px;
+                                    margin: 5px;
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                    background-color: #f9f9f9;
+                                ">
+                                    <div style="font-weight: bold; margin-bottom: 5px;">
+                                        {title}
+                                    </div>
+                                    <div style='{project[title]["style"]}; font-size: 20px;'>
+                                        {project[title]["value"]}
+                                    </div>
                                 </div>
-                                <div style='{project[title]["style"]}; font-size: 20px;'>
-                                    {project[title]["value"]}
-                                </div>
-                                <div style="display: none;">{title_dict.get(title, '')}</div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
+                                """,
+                                #help=title_dict.get(title, ''),
+                                unsafe_allow_html=True
+                            )
+                            st.markdown(f"(?)", help=tooltip)
         
             # 顯示專案說明和詳情連結
             if 'description' in config and config['description']:
-                with st.expander("專案詳情"):
+                with st.expander(f"{project['專案名稱']}詳情"):
                     st.write(config['description'])
                     if len(selected_projects) == 1:
                         st.markdown(f"[查看完整專案詳情](/project.py?project={selected_projects[0]})", unsafe_allow_html=True)
