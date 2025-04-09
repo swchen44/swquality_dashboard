@@ -138,13 +138,13 @@ def load_module_coverage(project_name):
         try:
             df = pd.read_csv(file_path)
             df['date'] = pd.to_datetime(df['date'])
-            logging.info(f"成功載入preflight_wut數據，行數: {len(df)}")
+            logging.info(f"成功載入module coverage數據，行數: {len(df)}")
             return df
         except Exception as e:
-            logging.error(f"載入preflight_wut數據失敗: {str(e)}", exc_info=True)
+            logging.error(f"載入module coverage數據失敗: {str(e)}", exc_info=True)
             raise
     
-    logging.warning(f"preflight_wut文件不存在: {file_path}")
+    logging.warning(f"module coverage文件不存在: {file_path}")
     return None
 
 # 載入所有專案資料
@@ -263,7 +263,7 @@ def main():
         # 添加preflight_wut組合指標
         if all_preflight_wut is not None:
             metrics.extend([
-                ('preflight_combined', 'Preflight WUT Summary', '{}', 'Build Fail / WUT Fail / Pass / Total')
+                ('preflight_wut_combined', 'Preflight WUT', '{}', 'Build Fail / WUT Fail / Pass / Total')
             ])
         
         # 顯示所有專案數據
@@ -281,7 +281,11 @@ def main():
             quality = calculate_quality_score(project, metrics_dict)
             
             # 獲取專案配置
+            print(f"專案名稱: {project}")
+            #print(f"{project['專案名稱']}")
             config = load_project_config(project)
+            print(f"{config['description']}")
+            
             
             # 收集專案數據
             row_data = {'專案名稱': project}
@@ -290,7 +294,7 @@ def main():
                 props = config['metrics'].get(col, {})
                 
                 # 處理preflight_wut組合數據
-                if col == 'preflight_combined' and all_preflight_wut is not None:
+                if col == 'preflight_wut_combined' and all_preflight_wut is not None:
                     pf_project = all_preflight_wut[all_preflight_wut['Project'] == project]
                     build_fail = len(pf_project[pf_project['type'] == 'build fail'])
                     wut_fail = len(pf_project[pf_project['type'] == 'wut fail'])
@@ -349,9 +353,11 @@ def main():
             # 顯示專案說明和詳情連結
             if 'description' in config and config['description']:
                 with st.expander(f"{project['專案名稱']}詳情"):
+                    st.write(f"{project['專案名稱']}詳情")
                     st.write(config['description'])
+
                     if len(selected_projects) == 1:
-                        st.markdown(f"[查看完整專案詳情](/project.py?project={selected_projects[0]})", unsafe_allow_html=True)
+                        st.markdown(f"[查看完整專案詳情](/app.py?project={selected_projects[0]})", unsafe_allow_html=True)
         
     
     # 趨勢圖表區
@@ -362,7 +368,12 @@ def main():
         # 判斷是否為同一天
         is_single_day = len(filtered_df['Date'].unique()) == 1
         
-        tab1, tab2, tab3 = st.tabs(["測試通過率", "缺陷趨勢", "代碼覆蓋率"])
+        if len(selected_projects) == 1 and all_preflight_wut is not None:
+            tabs = ["測試通過率", "缺陷趨勢", "代碼覆蓋率", "Preflight WUT 狀態"]
+            tab1, tab2, tab3, tab4 = st.tabs(tabs)
+        else:
+            tabs = ["測試通過率", "缺陷趨勢", "代碼覆蓋率"] 
+            tab1, tab2, tab3 = st.tabs(tabs)
         
         with tab1:
             if is_single_day:
@@ -425,6 +436,40 @@ def main():
                     title='代碼覆蓋率趨勢'
                 )
             st.plotly_chart(fig, use_container_width=True)
+            
+        # 顯示Preflight WUT狀態圖 (僅顯示單一專案時)
+        if len(selected_projects) == 1 and all_preflight_wut is not None:
+            with tab4:
+                try:
+                    # 準備數據
+                    pf_data = all_preflight_wut[all_preflight_wut['Project'] == selected_projects[0]]
+                    pf_counts = pf_data.groupby(['date', 'type']).size().unstack(fill_value=0)
+                    
+                    # 確保所有類型都存在
+                    for col in ['build fail', 'wut fail', 'pass']:
+                        if col not in pf_counts.columns:
+                            pf_counts[col] = 0
+                    
+                    # 重置索引並排序
+                    pf_counts = pf_counts.reset_index().sort_values('date')
+                    
+                    # 繪製堆疊長條圖
+                    fig = px.bar(
+                        pf_counts,
+                        x='date',
+                        y=['build fail', 'wut fail', 'pass'],
+                        title=f"{selected_projects[0]} Preflight WUT 狀態趨勢",
+                        labels={'value': '數量', 'date': '日期'},
+                        color_discrete_map={
+                            'build fail': '#FF5252',
+                            'wut fail': '#FFD740', 
+                            'pass': '#4CAF50'
+                        },
+                        barmode='stack'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"繪製Preflight WUT狀態圖時發生錯誤: {str(e)}")
     
     # 資料表格區
     st.markdown("---")
