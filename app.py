@@ -281,10 +281,10 @@ def main():
             quality = calculate_quality_score(project, metrics_dict)
             
             # 獲取專案配置
-            print(f"專案名稱: {project}")
+            #print(f"專案名稱: {project}")
             #print(f"{project['專案名稱']}")
             config = load_project_config(project)
-            print(f"{config['description']}")
+            #print(f"{config['description']}")
             
             
             # 收集專案數據
@@ -311,6 +311,8 @@ def main():
                     'style': style
                 }
             row_data['品質評分'] = f"{quality['score']} ({quality['grade']})"
+            if 'description' in config and config['description']:
+                row_data['description'] = config['description']
             all_projects_data.append(row_data)
         
         # 為每個專案顯示指標卡片
@@ -351,10 +353,10 @@ def main():
                             st.markdown(f"(?)", help=tooltip)
         
             # 顯示專案說明和詳情連結
-            if 'description' in config and config['description']:
+            if 'description' in project and project['description']:
                 with st.expander(f"{project['專案名稱']}詳情"):
                     st.write(f"{project['專案名稱']}詳情")
-                    st.write(config['description'])
+                    st.write(project['description'])
 
                     if len(selected_projects) == 1:
                         st.markdown(f"[查看完整專案詳情](/app.py?project={selected_projects[0]})", unsafe_allow_html=True)
