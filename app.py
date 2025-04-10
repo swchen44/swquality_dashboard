@@ -393,33 +393,33 @@ def main():
                     st.write(f"{project['專案名稱']}詳情")
                     st.write(project['description'])
 
-                    if len(selected_projects) == 1:
+                    if len(selected_projects) > 0:
                         # 生成包含當前篩選條件的URL
                         url = f"/app.py?project={selected_projects[0]}&date_range={date_range[0].strftime('%Y-%m-%d')},{date_range[1].strftime('%Y-%m-%d')}"
                         st.markdown(f"[查看完整專案詳情]({url})", unsafe_allow_html=True)
-                    elif len(selected_projects) > 1:
+                    
                         # 顯示URL使用說明
-                        with st.expander("URL分享選項"):
-                            st.write("""
-                            **分享當前篩選結果：**
-                            
-                            1. **多專案選擇** (用逗號分隔):
-                            ```
-                            /app.py?project=project1,project2,project3
-                            ```
-                            
-                            2. **日期範圍** (開始日期,結束日期):
-                            ```
-                            &date_range=2025-01-01,2025-04-01
-                            ```
-                            
-                            3. **完整範例**:
-                            ```
-                            /app.py?project=project1,project2&date_range=2025-01-01,2025-04-01
-                            ```
-                            
-                            注意：日期格式為YYYY-MM-DD
-                            """)
+                        
+                        #    st.write("""
+                        #    **分享當前篩選結果：**
+                        #    
+                        #    1. **多專案選擇** (用逗號分隔):
+                        #    ```
+                        #    /app.py?project=project1,project2,project3
+                        #    ```
+                        #    
+                        #    2. **日期範圍** (開始日期,結束日期):
+                        #    ```
+                        #    &date_range=2025-01-01,2025-04-01
+                        #    ```
+                        #    
+                        #    3. **完整範例**:
+                        #    ```
+                        #    /app.py?project=project1,project2&date_range=2025-01-01,2025-04-01
+                        #    ```
+                        #    
+                        #    注意：日期格式為YYYY-MM-DD
+                        #    """)
         
     
     # 趨勢圖表區
