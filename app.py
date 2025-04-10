@@ -163,6 +163,9 @@ def load_all_projects():
 
 # 主程式
 def main():
+    # 初始化logging系統
+    setup_logging()
+    
     # 載入資料
     df = load_all_projects()
     
