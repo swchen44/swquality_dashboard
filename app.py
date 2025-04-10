@@ -377,7 +377,7 @@ def main():
                                     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                                     background-color: #f9f9f9;
                                 ">
-                                    <div style="font-weight: bold; margin-bottom: 5px;">
+                                    <div style="font-weight: bold; margin-bottom: 5px; color: black;">
                                         {title}
                                     </div>
                                     <div style='{project[title]["style"]}; font-size: 20px;'>
