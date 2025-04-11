@@ -1,5 +1,87 @@
 
 
+# My LLM Codegen Workflow
+
+```mermaid
+graph TD
+    A[開始] --> B{專案類型}
+    B -->|全新專案| C[構思並完善想法]
+    B -->|現有專案| D[獲取程式碼上下文]
+    
+    C --> E[產生 spec.md]
+    E --> F[規劃專案藍圖]
+    F --> G[產生 prompt_plan.md 和 todo.md]
+    G --> H[執行代碼生成]
+    
+    D --> I[產生 output.txt]
+    I --> J[執行LLM任務]
+    J --> K[產生修改建議]
+    K --> H
+    
+    H --> L{驗證方式}
+    L -->|全新專案| M[運行測試/比對規格]
+    L -->|現有專案| N[運行現有測試套件]
+    
+    M --> O[完成]
+    N --> O
+```
+
+## 核心流程
+1. **構思階段** (適用於全新專案)
+   - 使用對話式LLM逐步完善想法
+   - 產出詳細規格 spec.md
+   ```mermaid
+   flowchart LR
+       A[初始想法] --> B[LLM對話完善]
+       B --> C[規格文件 spec.md]
+   ```
+
+2. **規劃階段**
+   - 將規格轉換為可執行計劃
+   - 產生 prompt_plan.md 和 todo.md
+   ```mermaid
+   flowchart TD
+       A[spec.md] --> B[分解需求]
+       B --> C[建立執行步驟]
+       C --> D[prompt_plan.md]
+       C --> E[todo.md]
+   ```
+
+3. **執行階段**
+   - 使用代碼生成工具實作
+   - 兩種主要工作模式:
+   ```mermaid
+   graph LR
+       A[執行方式] --> B[Claude結對編程]
+       A --> C[Aider自動化]
+       B --> D[手動驗證]
+       C --> E[自動測試]
+   ```
+
+4. **驗證階段**
+   - 確保代碼品質和功能正確性
+   ```mermaid
+   flowchart LR
+       A[驗證] --> B[運行測試]
+       A --> C[代碼審查]
+       A --> D[功能測試]
+       A --> E[文件檢查]
+   ```
+
+## 工具鏈
+- **對話LLM**: ChatGPT 4o, Claude 3
+- **代碼生成**: Aider, Claude Engineer
+- **上下文管理**: repomix, mise
+- **測試框架**: 依專案而定
+
+## 最佳實踐
+1. 保持迭代小步前進
+2. 嚴格追蹤進度(todo.md)
+3. 每個步驟後驗證結果
+4. 優先考慮可測試性
+5. 維持清晰的上下文邊界
+
+
 若要開始根據 Harper Reed 的文章《My LLM codegen workflow atm》進行實驗並確認成果，你可以依照文章中描述的兩種主要情境（全新專案和現有專案的迭代）來操作。
 
 首先，文章的摘要提到一個核心流程：**腦力激盪規格、然後規劃方案、然後使用 LLM codegen 執行。離散的迴圈。然後是魔法**。
