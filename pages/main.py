@@ -113,8 +113,12 @@ def show_main_page():
                     key=f"detail_{project}",
                     use_container_width=True
                 ):
-                    st.session_state["selected_project"] = project
-                    st.switch_page("pages/card_detail.py")
+                    config = load_project_config(project)
+                    if "pages" in config:
+                        st.switch_page(config["pages"])
+                    else:
+                        st.session_state["selected_project"] = project
+                        st.switch_page("pages/project.py")
 
     # 其他圖表內容...
     # (保留原有圖表邏輯，此處簡化顯示)
