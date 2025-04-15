@@ -23,6 +23,6 @@
     "Critical_Bugs": 0.3,
     "Code_Coverage": 0.2
   },
-  "pages": "pages/project3.py",
+  "pages": "data/project3/project3.py",
   "description": "## Project3 專案說明\n\n- **專案目標**: 開發3代核心系統\n- **技術棧**: Python, Streamlit, AWS\n- [需求文件](https://example.com/project3/requirements)\n- [GitHub倉庫](https://github.com/company/project3)\n- **重要里程碑**: \n  - 需求分析: 2025/08/01\n  - 系統設計: 2025/09/15\n  - 正式上線: 2025/12/01"
 }

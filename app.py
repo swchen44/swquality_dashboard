@@ -42,8 +42,8 @@ def setup_logging():
 # 主入口
 def main():
     setup_logging()
-    # 手動處理頁面路由
-    from pages.main import show_main_page
+    # 改用新的 views 路徑
+    from views.main import show_main_page
     show_main_page()
 
 if __name__ == '__main__':
