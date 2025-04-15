@@ -8,7 +8,8 @@ import os
 st.set_page_config(
     page_title="Software Quality Dashboard",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"  # 預設摺疊側邊欄
 )
 
 # 日誌配置
@@ -41,6 +42,7 @@ def setup_logging():
 # 主入口
 def main():
     setup_logging()
+    # 手動處理頁面路由
     from pages.main import show_main_page
     show_main_page()
 

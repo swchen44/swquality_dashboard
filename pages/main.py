@@ -6,6 +6,7 @@ import plotly.express as px
 from datetime import datetime
 from utils.quality_metrics import calculate_quality_score, get_style
 from utils.project_config import load_project_config
+from pages import card_detail, project_template, project, project1, project2, project3
 
 @st.cache_data  
 def load_preflight_wut_data(project_name):
@@ -48,7 +49,14 @@ def load_all_projects():
     return pd.concat(all_data)
 
 def show_main_page():
-    """顯示主頁面內容"""
+    # 如果需要側邊欄，可以手動控制其內容
+    with st.sidebar:
+        st.title("選單")
+        # 這裡可以加入您想要的側邊欄內容，例如過濾器等
+
+    # 主要內容區域
+    st.title('軟體品質儀表板')
+    
     # 載入資料
     df = load_all_projects()
     df['Date'] = pd.to_datetime(df['Date'])
