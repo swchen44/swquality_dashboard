@@ -6,6 +6,19 @@ from datetime import datetime
 from utils.quality_metrics import calculate_quality_score, get_style
 from utils.project_config import load_project_config
 
+def load_preflight_wut_data(project_name):
+    """載入並返回指定專案的 preflight_wut 測試結果"""
+    file_path = f'data/{project_name}/preflight_wut_result.csv'
+    if os.path.exists(file_path):
+        try:
+            df = pd.read_csv(file_path)
+            df['date'] = pd.to_datetime(df['date'])
+            return df
+        except Exception as e:
+            st.error(f"載入 preflight_wut 數據失敗: {str(e)}")
+            return None
+    return None
+
 def show_project_page():
     # 從session_state獲取專案名稱
     project = st.session_state.get("selected_project", "")
@@ -77,14 +90,76 @@ def show_project_page():
     
     # 顯示趨勢圖表
     st.subheader('趨勢分析')
-    if len(filtered_df) > 1:
-        fig = px.line(
-            filtered_df,
-            x='Date',
-            y=['Pass_Rate(%)', 'Code_Coverage'],
-            title='品質指標趨勢'
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    
+    # 建立標籤頁
+    tab1, tab2, tab3 = st.tabs(["品質指標趨勢", "模組覆蓋率", "Preflight WUT 分析"])
+    
+    with tab1:
+        if len(filtered_df) > 1:
+            fig = px.line(
+                filtered_df,
+                x='Date',
+                y=['Pass_Rate(%)', 'Code_Coverage'],
+                title='品質指標趨勢'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with tab3:
+        # 載入 preflight_wut 數據
+        preflight_data = load_preflight_wut_data(project)
+        if preflight_data is not None:
+            # 過濾日期範圍
+            mask = (
+                (preflight_data['date'] >= pd.to_datetime(start_date)) & 
+                (preflight_data['date'] <= pd.to_datetime(end_date))
+            )
+            filtered_preflight = preflight_data[mask]
+            
+            # 計算每日各類型的數量
+            daily_counts = filtered_preflight.groupby(['date', 'type']).size().unstack(fill_value=0)
+            
+            # 確保所有類型都存在
+            for col in ['build_fail', 'wut_fail', 'pass']:
+                if col not in daily_counts.columns:
+                    daily_counts[col] = 0
+            
+            # 生成堆疊長條圖
+            fig = px.bar(
+                daily_counts,
+                title=f'{project} Preflight WUT 測試結果分析',
+                labels={'value': '數量', 'date': '日期', 'type': '狀態'},
+                color_discrete_map={
+                    'build_fail': '#FF5252',  # 紅色
+                    'wut_fail': '#FFD740',    # 黃色
+                    'pass': '#4CAF50'         # 綠色
+                },
+                barmode='stack'
+            )
+            
+            # 更新圖表樣式
+            fig.update_layout(
+                xaxis_title='日期',
+                yaxis_title='測試次數',
+                legend_title='測試結果'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # 顯示統計摘要
+            with st.expander("查看統計摘要"):
+                total_tests = len(filtered_preflight)
+                pass_rate = (daily_counts['pass'].sum() / total_tests * 100) if total_tests > 0 else 0
+                
+                st.markdown(f"""
+                    ### 測試統計
+                    - 總測試次數: {total_tests}
+                    - 通過次數: {daily_counts['pass'].sum()}
+                    - Build 失敗次數: {daily_counts['build_fail'].sum()}
+                    - WUT 失敗次數: {daily_counts['wut_fail'].sum()}
+                    - 通過率: {pass_rate:.2f}%
+                """)
+        else:
+            st.info("此專案無 Preflight WUT 測試數據")
     
     # 返回主頁面按鈕
     if st.button('返回主頁面'):
