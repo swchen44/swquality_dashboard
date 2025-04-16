@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import os
 from datetime import datetime
 from utils.quality_metrics import calculate_quality_score, get_style
@@ -104,6 +105,71 @@ def show_project_page():
             )
             st.plotly_chart(fig, use_container_width=True)
     
+    with tab2:
+        # 載入模組覆蓋率數據
+        coverage_file = f'data/{project}/module_coverage.csv'
+        if os.path.exists(coverage_file):
+            coverage_df = pd.read_csv(coverage_file)
+            coverage_df['date'] = pd.to_datetime(coverage_df['date'])
+            
+            # 過濾日期範圍
+            mask = (
+                (coverage_df['date'] >= pd.to_datetime(start_date)) & 
+                (coverage_df['date'] <= pd.to_datetime(end_date))
+            )
+            filtered_coverage = coverage_df[mask]
+            
+            # 建立折線圖
+            fig1 = px.line(
+                filtered_coverage,
+                x='date',
+                y='coverage_percentage',
+                color='module_name',
+                title='模組覆蓋率趨勢',
+                labels={
+                    'date': '日期',
+                    'coverage_percentage': '覆蓋率 (%)',
+                    'module_name': '模組名稱'
+                }
+            )
+            
+            # 更新圖表樣式
+            fig1.update_layout(
+                xaxis_title='日期',
+                yaxis_title='覆蓋率 (%)',
+                legend_title='模組',
+                hovermode='x unified'
+            )
+            
+            st.plotly_chart(fig1, use_container_width=True)
+            
+            # 計算並顯示統計摘要
+            with st.expander("覆蓋率統計摘要"):
+                # 按模組計算平均覆蓋率
+                avg_coverage = filtered_coverage.groupby('module_name')['coverage_percentage'].agg([
+                    ('平均覆蓋率', 'mean'),
+                    ('最低覆蓋率', 'min'),
+                    ('最高覆蓋率', 'max')
+                ]).round(2)
+                
+                # 使用 plotly 繪製箱形圖
+                fig2 = px.box(
+                    filtered_coverage,
+                    x='module_name',
+                    y='coverage_percentage',
+                    title='模組覆蓋率分布',
+                    labels={
+                        'module_name': '模組名稱',
+                        'coverage_percentage': '覆蓋率 (%)'
+                    }
+                )
+                
+                # 顯示統計表格和箱形圖
+                st.dataframe(avg_coverage, use_container_width=True)
+                st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.info("此專案無模組覆蓋率數據")
+    
     with tab3:
         # 載入 preflight_wut 數據
         preflight_data = load_preflight_wut_data(project)
@@ -161,6 +227,15 @@ def show_project_page():
         else:
             st.info("此專案無 Preflight WUT 測試數據")
     
+    tab1_day, tab2_day = st.tabs(["單日模組覆蓋率", "單日模組覆蓋率"])
+    
+    with tab1_day:
+        st.info("todo")
+    with tab2_day:
+        st.info("todo")
+
+
+
     # 返回主頁面按鈕
     if st.button('返回主頁面'):
         st.switch_page("pages/main.py")

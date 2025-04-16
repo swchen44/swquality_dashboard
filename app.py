@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="Software Quality Dashboard",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="collapsed"  # 預設摺疊側邊欄
+    initial_sidebar_state="expanded"  # 預設摺疊側邊欄
 )
 
 # 日誌配置
