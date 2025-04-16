@@ -6,7 +6,7 @@ import plotly.express as px
 from datetime import datetime
 from utils.quality_metrics import calculate_quality_score, get_style
 from utils.project_config import load_project_config
-from pages import card_detail, project_template, project, project1, project2, project3
+from pages import  project, project1, project2, project3
 
 @st.cache_data  
 def load_preflight_wut_data(project_name):
