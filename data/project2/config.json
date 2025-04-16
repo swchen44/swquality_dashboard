@@ -23,6 +23,6 @@
     "Critical_Bugs": 0.3,
     "Code_Coverage": 0.2
   },
-  "pages": "data/project2/project2.py",
+  "pages": "pages/project2.py",
   "description": "## Project2 專案說明\n\n- **專案目標**: 開發2代核心系統\n- **技術棧**: Python, Streamlit, AWS\n- [需求文件](https://example.com/project2/requirements)\n- [GitHub倉庫](https://github.com/company/project2)\n- **重要里程碑**: \n  - 需求分析: 2025/07/01\n  - 系統設計: 2025/08/15\n  - 正式上線: 2025/10/02"
 }
