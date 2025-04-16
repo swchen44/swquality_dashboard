@@ -326,6 +326,18 @@ def show_project_page():
                 # 創建泡泡圖
                 fig = go.Figure()
                 
+                # 添加參考線 (60% 覆蓋率)
+                fig.add_shape(
+                    type="line",
+                    x0=60, x1=60,
+                    y0=0, y1=day_data['total_line_number'].max(),
+                    line=dict(
+                        color="red",
+                        width=2,
+                        dash="dash"
+                    )
+                )
+                
                 # 添加泡泡
                 fig.add_trace(go.Scatter(
                     x=day_data['coverage_percentage'],
@@ -348,15 +360,23 @@ def show_project_page():
                 # 更新圖表布局
                 fig.update_layout(
                     title=f'模組覆蓋率分析 ({selected_date.strftime("%Y-%m-%d")})',
-                    xaxis_title='覆蓋率 (%)',
-                    yaxis_title='總行數',
+                    xaxis=dict(
+                        title='覆蓋率 (%)',
+                        range=[0, 100],  # X軸從0開始到100%
+                        showgrid=True
+                    ),
+                    yaxis=dict(
+                        title='總行數',
+                        range=[0, day_data['total_line_number'].max() * 1.1],  # Y軸從0開始，最大值加10%留空間
+                        showgrid=True
+                    ),
                     showlegend=False,
                     hovermode='closest'
                 )
                 
                 # 添加網格線
-                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
-                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+                fig.update_xaxes(gridwidth=1, gridcolor='LightGray')
+                fig.update_yaxes(gridwidth=1, gridcolor='LightGray')
                 
                 # 顯示圖表
                 st.plotly_chart(fig, use_container_width=True)
