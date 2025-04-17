@@ -710,6 +710,230 @@ def show_project_page():
                         delta=f"{(wut_fail_count/total_tests*100):.1f}%" if total_tests > 0 else "0%"
                     )
     
+    
+# 顯示趨勢圖表
+    st.divider()
+    st.subheader('日趨勢分析')
+
+    tab1_day, tab2_day = st.tabs(["單日模組覆蓋率", "單日模組覆蓋率分析"])
+    
+    with tab1_day:
+        # 讀取覆蓋率數據
+        coverage_file = f'data/{project}/module_coverage.csv'
+        if os.path.exists(coverage_file):
+            coverage_df = pd.read_csv(coverage_file)
+            coverage_df['date'] = pd.to_datetime(coverage_df['date'])
+            
+            # 使用側邊欄選擇的結束日期
+            selected_date = end_date
+            day_data = coverage_df[coverage_df['date'] == selected_date].copy()
+            
+            if len(day_data) > 0:
+                # 計算未覆蓋的行數
+                day_data['uncovered_lines'] = day_data['total_line_number'] - day_data['covered_line_number']
+                
+                # 依據覆蓋率排序（由高到低）
+                day_data = day_data.sort_values('coverage_percentage', ascending=False)
+                
+                # 創建堆疊直條圖
+                fig = go.Figure()
+                
+                # 新增覆蓋的行數
+                fig.add_trace(go.Bar(
+                    name='已覆蓋行數',
+                    x=day_data['module_name'],
+                    y=day_data['covered_line_number'],
+                    marker_color='#2ecc71',  # 綠色
+                    text=day_data['covered_line_number'],
+                    textposition='inside',
+                ))
+                
+                # 新增未覆蓋的行數
+                fig.add_trace(go.Bar(
+                    name='未覆蓋行數',
+                    x=day_data['module_name'],
+                    y=day_data['uncovered_lines'],
+                    marker_color='#e74c3c',  # 紅色
+                    text=day_data['uncovered_lines'],
+                    textposition='inside',
+                ))
+                
+                # 更新圖表布局
+                fig.update_layout(
+                    title=f'模組覆蓋率分析 ({selected_date.strftime("%Y-%m-%d")})',
+                    xaxis_title='模組名稱',
+                    yaxis_title='程式行數',
+                    barmode='stack',
+                    hovermode='x unified',
+                    showlegend=True
+                )
+                
+                # 添加覆蓋率文字標籤
+                annotations = []
+                for i, row in day_data.iterrows():
+                    annotations.append(dict(
+                        x=row['module_name'],
+                        y=row['total_line_number'],
+                        text=f'{row["coverage_percentage"]:.1f}%',
+                        showarrow=False,
+                        yanchor='bottom',
+                        yshift=10,
+                        font=dict(
+                            size=14,
+                            color='black'
+                        )
+                    ))
+                fig.update_layout(annotations=annotations)
+                
+                # 顯示圖表
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 顯示數據表格
+                with st.expander("查看詳細數據"):
+                    summary_df = day_data[['module_name', 'covered_line_number', 'total_line_number', 'coverage_percentage']].copy()
+                    summary_df.columns = ['模組名稱', '已覆蓋行數', '總行數', '覆蓋率(%)']
+                    summary_df['覆蓋率(%)'] = summary_df['覆蓋率(%)'].round(2)
+                    st.dataframe(summary_df, use_container_width=True)
+            else:
+                st.warning(f"在 {selected_date.strftime('%Y-%m-%d')} 沒有找到覆蓋率數據")
+        else:
+            st.info("此專案無模組覆蓋率數據")
+    
+    with tab2_day:
+        # 讀取覆蓋率數據
+        coverage_file = f'data/{project}/module_coverage.csv'
+        if os.path.exists(coverage_file):
+            coverage_df = pd.read_csv(coverage_file)
+            coverage_df['date'] = pd.to_datetime(coverage_df['date'])
+            
+            # 使用側邊欄選擇的結束日期
+            selected_date = end_date
+            day_data = coverage_df[coverage_df['date'] == selected_date].copy()
+            
+            if len(day_data) > 0:
+                # 創建泡泡圖
+                fig = go.Figure()
+                
+                # 添加參考線 (60% 覆蓋率)
+                fig.add_shape(
+                    type="line",
+                    x0=60, x1=60,
+                    y0=0, y1=day_data['total_line_number'].max(),
+                    line=dict(
+                        color="red",
+                        width=2,
+                        dash="dash"
+                    )
+                )
+                
+                # 添加泡泡
+                fig.add_trace(go.Scatter(
+                    x=day_data['coverage_percentage'],
+                    y=day_data['total_line_number'],
+                    mode='markers+text',
+                    marker=dict(
+                        size=20,
+                        color='#1f77b4',
+                        opacity=0.7,
+                        line=dict(
+                            color='#ffffff',
+                            width=1
+                        )
+                    ),
+                    text=day_data['module_name'],
+                    textposition='top center',
+                    name='模組'
+                ))
+                
+                # 更新圖表布局
+                fig.update_layout(
+                    title=f'模組覆蓋率分析 ({selected_date.strftime("%Y-%m-%d")})',
+                    xaxis=dict(
+                        title='覆蓋率 (%)',
+                        range=[0, 100],  # X軸從0開始到100%
+                        showgrid=True
+                    ),
+                    yaxis=dict(
+                        title='總行數',
+                        range=[0, day_data['total_line_number'].max() * 1.1],  # Y軸從0開始，最大值加10%留空間
+                        showgrid=True
+                    ),
+                    showlegend=False,
+                    hovermode='closest'
+                )
+                
+                # 添加網格線
+                fig.update_xaxes(gridwidth=1, gridcolor='LightGray')
+                fig.update_yaxes(gridwidth=1, gridcolor='LightGray')
+                
+                # 顯示圖表
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 顯示數據表格
+                with st.expander("查看詳細數據"):
+                    summary_df = day_data[['module_name', 'coverage_percentage', 'total_line_number']].copy()
+                    summary_df.columns = ['模組名稱', '覆蓋率(%)', '總行數']
+                    summary_df['覆蓋率(%)'] = summary_df['覆蓋率(%)'].round(2)
+                    st.dataframe(summary_df.sort_values('覆蓋率(%)', ascending=False), use_container_width=True)
+                
+                # 在原有泡泡圖下方添加變化速率分析
+                with st.expander("覆蓋率變化分析"):
+                    # 計算前一天的數據
+                    prev_date = coverage_df[coverage_df['date'] < selected_date]['date'].max()
+                    prev_data = coverage_df[coverage_df['date'] == prev_date].copy()
+                    
+                    if len(prev_data) > 0:
+                        # 合併當天和前一天的數據
+                        merged_data = pd.merge(
+                            day_data,
+                            prev_data[['module_name', 'coverage_percentage']],
+                            on='module_name',
+                            suffixes=('_current', '_prev')
+                        )
+                        
+                        # 計算變化
+                        merged_data['change'] = merged_data['coverage_percentage_current'] - merged_data['coverage_percentage_prev']
+                        
+                        # 創建瀑布圖
+                        fig_change = go.Figure()
+                        
+                        # 添加變化柱狀圖
+                        fig_change.add_trace(go.Bar(
+                            x=merged_data['module_name'],
+                            y=merged_data['change'],
+                            marker_color=merged_data['change'].apply(
+                                lambda x: '#2ecc71' if x > 0 else '#e74c3c'
+                            ),
+                            text=merged_data['change'].round(2),
+                            textposition='outside'
+                        ))
+                        
+                        # 更新布局
+                        fig_change.update_layout(
+                            title=f'模組覆蓋率日變化 ({prev_date.strftime("%Y-%m-%d")} → {selected_date.strftime("%Y-%m-%d")})',
+                            xaxis_title='模組名稱',
+                            yaxis_title='覆蓋率變化 (%)',
+                            showlegend=False,
+                            yaxis=dict(zeroline=True)
+                        )
+                        
+                        st.plotly_chart(fig_change, use_container_width=True)
+                        
+                        # 顯示變化統計
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("最大增長", f"{merged_data['change'].max():.2f}%",
+                                    delta=merged_data.loc[merged_data['change'].idxmax(), 'module_name'])
+                        with col2:
+                            st.metric("最大下降", f"{merged_data['change'].min():.2f}%",
+                                    delta=merged_data.loc[merged_data['change'].idxmin(), 'module_name'])
+                        with col3:
+                            st.metric("平均變化", f"{merged_data['change'].mean():.2f}%")
+            else:
+                st.warning(f"在 {selected_date.strftime('%Y-%m-%d')} 沒有找到覆蓋率數據")
+        else:
+            st.info("此專案無模組覆蓋率數據")
+    
     # 返回主頁面按鈕
     if st.button('返回主頁面'):
         st.switch_page("pages/main.py")
