@@ -167,6 +167,131 @@ def show_project_page():
                 # 顯示統計表格和箱形圖
                 st.dataframe(avg_coverage, use_container_width=True)
                 st.plotly_chart(fig2, use_container_width=True)
+            
+            # 繪製區間趨勢圖
+            with st.expander("覆蓋率區間趨勢"):
+                # 計算每日的覆蓋率統計
+                daily_stats = filtered_coverage.groupby('date').agg({
+                    'coverage_percentage': ['mean', 'min', 'max']
+                }).reset_index()
+                daily_stats.columns = ['date', 'mean', 'min', 'max']
+                
+                # 創建區間趨勢圖
+                fig3 = go.Figure()
+                
+                # 添加區間
+                fig3.add_trace(go.Scatter(
+                    x=daily_stats['date'],
+                    y=daily_stats['max'],
+                    fill=None,
+                    mode='lines',
+                    line_color='rgba(0,100,80,0.2)',
+                    name='最高覆蓋率'
+                ))
+                
+                fig3.add_trace(go.Scatter(
+                    x=daily_stats['date'],
+                    y=daily_stats['min'],
+                    fill='tonexty',
+                    mode='lines',
+                    line_color='rgba(0,100,80,0.2)',
+                    name='最低覆蓋率'
+                ))
+                
+                # 添加平均線
+                fig3.add_trace(go.Scatter(
+                    x=daily_stats['date'],
+                    y=daily_stats['mean'],
+                    mode='lines',
+                    line_color='rgb(0,100,80)',
+                    name='平均覆蓋率'
+                ))
+                
+                # 更新布局
+                fig3.update_layout(
+                    title='每日覆蓋率區間趨勢',
+                    xaxis_title='日期',
+                    yaxis_title='覆蓋率 (%)',
+                    hovermode='x unified',
+                    showlegend=True
+                )
+                
+                st.plotly_chart(fig3, use_container_width=True)
+            
+            with st.expander("覆蓋率熱力圖"):
+                # 重新組織數據為矩陣形式
+                pivot_data = filtered_coverage.pivot(
+                    index='date',
+                    columns='module_name',
+                    values='coverage_percentage'
+                )
+                
+                # 創建熱力圖
+                fig4 = go.Figure(data=go.Heatmap(
+                    z=pivot_data.values,
+                    x=pivot_data.columns,
+                    y=pivot_data.index,
+                    colorscale='RdYlGn',  # 紅黃綠配色
+                    zmin=0,
+                    zmax=100
+                ))
+                
+                # 更新布局
+                fig4.update_layout(
+                    title='模組覆蓋率熱力圖',
+                    xaxis_title='模組名稱',
+                    yaxis_title='日期',
+                    height=600
+                )
+                
+                st.plotly_chart(fig4, use_container_width=True)
+            
+            with st.expander("週期性分析"):
+                # 添加時間維度選擇
+                time_unit = st.selectbox(
+                    "選擇時間維度",
+                    ["週", "月"],
+                    key="time_unit"
+                )
+                
+                # 根據選擇的時間維度進行數據重組
+                if time_unit == "週":
+                    filtered_coverage['period'] = filtered_coverage['date'].dt.strftime('%Y-W%U')
+                else:
+                    filtered_coverage['period'] = filtered_coverage['date'].dt.strftime('%Y-%m')
+                
+                # 計算週期平均值
+                period_avg = filtered_coverage.groupby(['period', 'module_name'])['coverage_percentage'].mean().reset_index()
+                
+                # 創建週期性趨勢圖
+                fig_period = px.line(
+                    period_avg,
+                    x='period',
+                    y='coverage_percentage',
+                    color='module_name',
+                    title=f'模組覆蓋率{time_unit}度趨勢',
+                    labels={
+                        'period': f'{time_unit}份',
+                        'coverage_percentage': '平均覆蓋率 (%)',
+                        'module_name': '模組名稱'
+                    }
+                )
+                
+                # 更新布局
+                fig_period.update_layout(
+                    xaxis_title=f'{time_unit}份',
+                    yaxis_title='平均覆蓋率 (%)',
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig_period, use_container_width=True)
+                
+                # 顯示週期性統計摘要
+                period_stats = period_avg.groupby('module_name').agg({
+                    'coverage_percentage': ['mean', 'std', 'min', 'max']
+                }).round(2)
+                period_stats.columns = ['平均覆蓋率', '標準差', '最低覆蓋率', '最高覆蓋率']
+                st.dataframe(period_stats)
         else:
             st.info("此專案無模組覆蓋率數據")
     
@@ -387,6 +512,60 @@ def show_project_page():
                     summary_df.columns = ['模組名稱', '覆蓋率(%)', '總行數']
                     summary_df['覆蓋率(%)'] = summary_df['覆蓋率(%)'].round(2)
                     st.dataframe(summary_df.sort_values('覆蓋率(%)', ascending=False), use_container_width=True)
+                
+                # 在原有泡泡圖下方添加變化速率分析
+                with st.expander("覆蓋率變化分析"):
+                    # 計算前一天的數據
+                    prev_date = coverage_df[coverage_df['date'] < selected_date]['date'].max()
+                    prev_data = coverage_df[coverage_df['date'] == prev_date].copy()
+                    
+                    if len(prev_data) > 0:
+                        # 合併當天和前一天的數據
+                        merged_data = pd.merge(
+                            day_data,
+                            prev_data[['module_name', 'coverage_percentage']],
+                            on='module_name',
+                            suffixes=('_current', '_prev')
+                        )
+                        
+                        # 計算變化
+                        merged_data['change'] = merged_data['coverage_percentage_current'] - merged_data['coverage_percentage_prev']
+                        
+                        # 創建瀑布圖
+                        fig_change = go.Figure()
+                        
+                        # 添加變化柱狀圖
+                        fig_change.add_trace(go.Bar(
+                            x=merged_data['module_name'],
+                            y=merged_data['change'],
+                            marker_color=merged_data['change'].apply(
+                                lambda x: '#2ecc71' if x > 0 else '#e74c3c'
+                            ),
+                            text=merged_data['change'].round(2),
+                            textposition='outside'
+                        ))
+                        
+                        # 更新布局
+                        fig_change.update_layout(
+                            title=f'模組覆蓋率日變化 ({prev_date.strftime("%Y-%m-%d")} → {selected_date.strftime("%Y-%m-%d")})',
+                            xaxis_title='模組名稱',
+                            yaxis_title='覆蓋率變化 (%)',
+                            showlegend=False,
+                            yaxis=dict(zeroline=True)
+                        )
+                        
+                        st.plotly_chart(fig_change, use_container_width=True)
+                        
+                        # 顯示變化統計
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("最大增長", f"{merged_data['change'].max():.2f}%",
+                                    delta=merged_data.loc[merged_data['change'].idxmax(), 'module_name'])
+                        with col2:
+                            st.metric("最大下降", f"{merged_data['change'].min():.2f}%",
+                                    delta=merged_data.loc[merged_data['change'].idxmin(), 'module_name'])
+                        with col3:
+                            st.metric("平均變化", f"{merged_data['change'].mean():.2f}%")
             else:
                 st.warning(f"在 {selected_date.strftime('%Y-%m-%d')} 沒有找到覆蓋率數據")
         else:
