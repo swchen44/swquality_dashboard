@@ -275,13 +275,12 @@ def show_project_page():
                     period_data = filtered_coverage_period.groupby(['period', 'module_name'])['coverage_percentage'].mean().reset_index()
                 else:
                     # 計算每個週期的最後一天數據
-                    period_last_date = filtered_coverage_period.groupby(['period', 'module_name'])['date'].max().reset_index()
-                    period_data = pd.merge(
-                        period_last_date,
-                        filtered_coverage_period,
-                        on=['date', 'module_name']
-                    )[['period', 'module_name', 'coverage_percentage']]
-
+                    period_last_date = filtered_coverage_period.groupby(['period', 'module_name']).agg({
+                        'date': 'max',
+                        'coverage_percentage': 'last'
+                    }).reset_index()
+                    period_data = period_last_date[['period', 'module_name', 'coverage_percentage']]
+                
                 # 設定 y 軸標籤
                 y_axis_label = '覆蓋率 (%)'
                 
@@ -475,6 +474,48 @@ def show_project_page():
                 )
                 
                 st.plotly_chart(fig_rate, use_container_width=True)
+                
+                # 計算失敗率趨勢
+                total_by_period = filtered_preflight.groupby('period').size()
+                build_fail_by_period = filtered_preflight[filtered_preflight['type'] == 'build_fail'].groupby('period').size()
+                wut_fail_by_period = filtered_preflight[filtered_preflight['type'] == 'wut_fail'].groupby('period').size()
+                
+                build_fail_rate = (build_fail_by_period / total_by_period * 100).fillna(0)
+                wut_fail_rate = (wut_fail_by_period / total_by_period * 100).fillna(0)
+                
+                # 創建失敗率趨勢圖
+                fig_fail_rate = go.Figure()
+                
+                # 添加建置失敗率曲線
+                fig_fail_rate.add_trace(go.Scatter(
+                    x=build_fail_rate.index,
+                    y=build_fail_rate.values,
+                    mode='lines+markers',
+                    name='建置失敗率',
+                    line=dict(color='#FF5252'),
+                    marker=dict(size=8)
+                ))
+                
+                # 添加WUT失敗率曲線
+                fig_fail_rate.add_trace(go.Scatter(
+                    x=wut_fail_rate.index,
+                    y=wut_fail_rate.values,
+                    mode='lines+markers',
+                    name='WUT失敗率',
+                    line=dict(color='#FFD740'),
+                    marker=dict(size=8)
+                ))
+                
+                # 更新布局
+                fig_fail_rate.update_layout(
+                    title=f'Preflight WUT {time_unit}度失敗率趨勢',
+                    xaxis_title=f'{time_unit}份',
+                    yaxis_title='失敗率 (%)',
+                    yaxis=dict(range=[0, 100]),
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig_fail_rate, use_container_width=True)
             
             with wut_tab3:
                 # 創建失敗原因分析圖表
@@ -626,7 +667,6 @@ def show_project_page():
                         quiet_day = weekday_stats.idxmin()
                         
                         st.markdown(f"""
-                            ### 星期分布統計
                             - 最活躍星期：{peak_day} ({weekday_stats[peak_day]} 次測試)
                             - 最不活躍星期：{quiet_day} ({weekday_stats[quiet_day]} 次測試)
                             - 平均每天測試次數：{weekday_stats.mean():.1f}
