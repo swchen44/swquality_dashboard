@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np
 import os
 from datetime import datetime
 from utils.quality_metrics import calculate_quality_score, get_style
@@ -248,31 +249,52 @@ def show_project_page():
             
             with st.expander("週期性分析"):
                 # 添加時間維度選擇
-                time_unit = st.selectbox(
-                    "選擇時間維度",
-                    ["週", "月"],
-                    key="time_unit"
-                )
+                col1, col2 = st.columns(2)
+                with col1:
+                    time_unit = st.selectbox(
+                        "選擇時間維度",
+                        ["週", "月"],
+                        key="time_unit"
+                    )
+                with col2:
+                    value_type = st.selectbox(
+                        "選擇數值類型",
+                        ["平均值", "期末值"],
+                        key="value_type"
+                    )
                 
                 # 根據選擇的時間維度進行數據重組
+                filtered_coverage_period = filtered_coverage.copy()
                 if time_unit == "週":
-                    filtered_coverage['period'] = filtered_coverage['date'].dt.strftime('%Y-W%U')
+                    filtered_coverage_period['period'] = filtered_coverage_period['date'].dt.strftime('%Y-W%U')
                 else:
-                    filtered_coverage['period'] = filtered_coverage['date'].dt.strftime('%Y-%m')
+                    filtered_coverage_period['period'] = filtered_coverage_period['date'].dt.strftime('%Y-%m')
                 
-                # 計算週期平均值
-                period_avg = filtered_coverage.groupby(['period', 'module_name'])['coverage_percentage'].mean().reset_index()
+                # 根據選擇的數值類型計算數據
+                if value_type == "平均值":
+                    period_data = filtered_coverage_period.groupby(['period', 'module_name'])['coverage_percentage'].mean().reset_index()
+                else:
+                    # 計算每個週期的最後一天數據
+                    period_last_date = filtered_coverage_period.groupby(['period', 'module_name'])['date'].max().reset_index()
+                    period_data = pd.merge(
+                        period_last_date,
+                        filtered_coverage_period,
+                        on=['date', 'module_name']
+                    )[['period', 'module_name', 'coverage_percentage']]
+
+                # 設定 y 軸標籤
+                y_axis_label = '覆蓋率 (%)'
                 
                 # 創建週期性趨勢圖
                 fig_period = px.line(
-                    period_avg,
+                    period_data,
                     x='period',
                     y='coverage_percentage',
                     color='module_name',
-                    title=f'模組覆蓋率{time_unit}度趨勢',
+                    title=f'模組覆蓋率{time_unit}度趨勢 ({value_type})',
                     labels={
                         'period': f'{time_unit}份',
-                        'coverage_percentage': '平均覆蓋率 (%)',
+                        'coverage_percentage': y_axis_label,
                         'module_name': '模組名稱'
                     }
                 )
@@ -280,17 +302,18 @@ def show_project_page():
                 # 更新布局
                 fig_period.update_layout(
                     xaxis_title=f'{time_unit}份',
-                    yaxis_title='平均覆蓋率 (%)',
+                    yaxis_title=y_axis_label,
                     hovermode='x unified'
                 )
                 
                 st.plotly_chart(fig_period, use_container_width=True)
                 
                 # 顯示週期性統計摘要
-                period_stats = period_avg.groupby('module_name').agg({
+                value_description = "平均" if value_type == "平均值" else "期末"
+                period_stats = period_data.groupby('module_name').agg({
                     'coverage_percentage': ['mean', 'std', 'min', 'max']
                 }).round(2)
-                period_stats.columns = ['平均覆蓋率', '標準差', '最低覆蓋率', '最高覆蓋率']
+                period_stats.columns = [f'{value_description}覆蓋率平均', '標準差', '最低覆蓋率', '最高覆蓋率']
                 st.dataframe(period_stats)
         else:
             st.info("此專案無模組覆蓋率數據")
@@ -306,271 +329,347 @@ def show_project_page():
             )
             filtered_preflight = preflight_data[mask]
             
-            # 計算每日各類型的數量
-            daily_counts = filtered_preflight.groupby(['date', 'type']).size().unstack(fill_value=0)
+            # 創建子標籤頁
+            wut_tab1, wut_tab2, wut_tab3, wut_tab4 = st.tabs([
+                "每日分析", 
+                "累積趨勢分析",
+                "失敗原因分析",
+                "時間分布分析"
+            ])
             
-            # 確保所有類型都存在
-            for col in ['build_fail', 'wut_fail', 'pass']:
-                if col not in daily_counts.columns:
-                    daily_counts[col] = 0
-            
-            # 生成堆疊長條圖
-            fig = px.bar(
-                daily_counts,
-                title=f'{project} Preflight WUT 測試結果分析',
-                labels={'value': '數量', 'date': '日期', 'type': '狀態'},
-                color_discrete_map={
-                    'build_fail': '#FF5252',  # 紅色
-                    'wut_fail': '#FFD740',    # 黃色
-                    'pass': '#4CAF50'         # 綠色
-                },
-                barmode='stack'
-            )
-            
-            # 更新圖表樣式
-            fig.update_layout(
-                xaxis_title='日期',
-                yaxis_title='測試次數',
-                legend_title='測試結果'
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # 顯示統計摘要
-            with st.expander("查看統計摘要"):
-                total_tests = len(filtered_preflight)
-                pass_rate = (daily_counts['pass'].sum() / total_tests * 100) if total_tests > 0 else 0
+            with wut_tab1:
+                # 計算每日各類型的數量
+                daily_counts = filtered_preflight.groupby(['date', 'type']).size().unstack(fill_value=0)
                 
-                st.markdown(f"""
-                    ### 測試統計
-                    - 總測試次數: {total_tests}
-                    - 通過次數: {daily_counts['pass'].sum()}
-                    - Build 失敗次數: {daily_counts['build_fail'].sum()}
-                    - WUT 失敗次數: {daily_counts['wut_fail'].sum()}
-                    - 通過率: {pass_rate:.2f}%
-                """)
-        else:
-            st.info("此專案無 Preflight WUT 測試數據")
-    
-    tab1_day, tab2_day = st.tabs(["單日模組覆蓋率", "單日模組覆蓋率分析"])
-    
-    with tab1_day:
-        # 讀取覆蓋率數據
-        coverage_file = f'data/{project}/module_coverage.csv'
-        if os.path.exists(coverage_file):
-            coverage_df = pd.read_csv(coverage_file)
-            coverage_df['date'] = pd.to_datetime(coverage_df['date'])
-            
-            # 使用側邊欄選擇的結束日期
-            selected_date = end_date
-            day_data = coverage_df[coverage_df['date'] == selected_date].copy()
-            
-            if len(day_data) > 0:
-                # 計算未覆蓋的行數
-                day_data['uncovered_lines'] = day_data['total_line_number'] - day_data['covered_line_number']
+                # 確保所有類型都存在
+                for col in ['build_fail', 'wut_fail', 'pass']:
+                    if col not in daily_counts.columns:
+                        daily_counts[col] = 0
                 
-                # 依據覆蓋率排序（由高到低）
-                day_data = day_data.sort_values('coverage_percentage', ascending=False)
-                
-                # 創建堆疊直條圖
-                fig = go.Figure()
-                
-                # 新增覆蓋的行數
-                fig.add_trace(go.Bar(
-                    name='已覆蓋行數',
-                    x=day_data['module_name'],
-                    y=day_data['covered_line_number'],
-                    marker_color='#2ecc71',  # 綠色
-                    text=day_data['covered_line_number'],
-                    textposition='inside',
-                ))
-                
-                # 新增未覆蓋的行數
-                fig.add_trace(go.Bar(
-                    name='未覆蓋行數',
-                    x=day_data['module_name'],
-                    y=day_data['uncovered_lines'],
-                    marker_color='#e74c3c',  # 紅色
-                    text=day_data['uncovered_lines'],
-                    textposition='inside',
-                ))
-                
-                # 更新圖表布局
-                fig.update_layout(
-                    title=f'模組覆蓋率分析 ({selected_date.strftime("%Y-%m-%d")})',
-                    xaxis_title='模組名稱',
-                    yaxis_title='程式行數',
-                    barmode='stack',
-                    hovermode='x unified',
-                    showlegend=True
+                # 生成堆疊長條圖
+                fig = px.bar(
+                    daily_counts,
+                    title=f'{project} Preflight WUT 每日測試結果',
+                    labels={'value': '數量', 'date': '日期', 'type': '狀態'},
+                    color_discrete_map={
+                        'build_fail': '#FF5252',  # 紅色
+                        'wut_fail': '#FFD740',    # 黃色
+                        'pass': '#4CAF50'         # 綠色
+                    },
+                    barmode='stack'
                 )
                 
-                # 添加覆蓋率文字標籤
-                annotations = []
-                for i, row in day_data.iterrows():
-                    annotations.append(dict(
-                        x=row['module_name'],
-                        y=row['total_line_number'],
-                        text=f'{row["coverage_percentage"]:.1f}%',
-                        showarrow=False,
-                        yanchor='bottom',
-                        yshift=10,
-                        font=dict(
-                            size=14,
-                            color='black'
-                        )
-                    ))
-                fig.update_layout(annotations=annotations)
+                # 更新圖表樣式
+                fig.update_layout(
+                    xaxis_title='日期',
+                    yaxis_title='測試次數',
+                    legend_title='測試結果',
+                    hovermode='x unified'
+                )
                 
-                # 顯示圖表
                 st.plotly_chart(fig, use_container_width=True)
-                
-                # 顯示數據表格
-                with st.expander("查看詳細數據"):
-                    summary_df = day_data[['module_name', 'covered_line_number', 'total_line_number', 'coverage_percentage']].copy()
-                    summary_df.columns = ['模組名稱', '已覆蓋行數', '總行數', '覆蓋率(%)']
-                    summary_df['覆蓋率(%)'] = summary_df['覆蓋率(%)'].round(2)
-                    st.dataframe(summary_df, use_container_width=True)
-            else:
-                st.warning(f"在 {selected_date.strftime('%Y-%m-%d')} 沒有找到覆蓋率數據")
-        else:
-            st.info("此專案無模組覆蓋率數據")
-    
-    with tab2_day:
-        # 讀取覆蓋率數據
-        coverage_file = f'data/{project}/module_coverage.csv'
-        if os.path.exists(coverage_file):
-            coverage_df = pd.read_csv(coverage_file)
-            coverage_df['date'] = pd.to_datetime(coverage_df['date'])
             
-            # 使用側邊欄選擇的結束日期
-            selected_date = end_date
-            day_data = coverage_df[coverage_df['date'] == selected_date].copy()
-            
-            if len(day_data) > 0:
-                # 創建泡泡圖
-                fig = go.Figure()
+            with wut_tab2:
+                # 創建時間維度選擇器
+                time_unit = st.selectbox(
+                    "選擇時間維度",
+                    ["日", "週", "月"],
+                    key="wut_time_unit"
+                )
                 
-                # 添加參考線 (60% 覆蓋率)
-                fig.add_shape(
+                # 根據選擇的時間維度進行數據重組
+                if time_unit == "週":
+                    filtered_preflight['period'] = filtered_preflight['date'].dt.strftime('%Y-W%U')
+                elif time_unit == "月":
+                    filtered_preflight['period'] = filtered_preflight['date'].dt.strftime('%Y-%m')
+                else:
+                    filtered_preflight['period'] = filtered_preflight['date'].dt.strftime('%Y-%m-%d')
+                
+                # 計算累積數據
+                cumulative_data = filtered_preflight.groupby(['period', 'type']).size().unstack(fill_value=0).cumsum()
+                
+                # 確保所有類型都存在
+                for col in ['build_fail', 'wut_fail', 'pass']:
+                    if col not in cumulative_data.columns:
+                        cumulative_data[col] = 0
+                
+                # 創建累積面積圖
+                fig_cum = go.Figure()
+                
+                # 添加各類型的累積面積
+                fig_cum.add_trace(go.Scatter(
+                    x=cumulative_data.index,
+                    y=cumulative_data['pass'],
+                    name='通過',
+                    fill='tonexty',
+                    mode='lines',
+                    line=dict(color='#4CAF50')
+                ))
+                
+                fig_cum.add_trace(go.Scatter(
+                    x=cumulative_data.index,
+                    y=cumulative_data['wut_fail'] + cumulative_data['pass'],
+                    name='WUT失敗',
+                    fill='tonexty',
+                    mode='lines',
+                    line=dict(color='#FFD740')
+                ))
+                
+                fig_cum.add_trace(go.Scatter(
+                    x=cumulative_data.index,
+                    y=cumulative_data['build_fail'] + cumulative_data['wut_fail'] + cumulative_data['pass'],
+                    name='建置失敗',
+                    fill='tonexty',
+                    mode='lines',
+                    line=dict(color='#FF5252')
+                ))
+                
+                # 更新布局
+                fig_cum.update_layout(
+                    title=f'Preflight WUT {time_unit}度累積趨勢',
+                    xaxis_title=f'{time_unit}份',
+                    yaxis_title='累積測試次數',
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig_cum, use_container_width=True)
+                
+                # 計算成功率趨勢
+                period_total = filtered_preflight.groupby('period').size()
+                period_success = filtered_preflight[filtered_preflight['type'] == 'pass'].groupby('period').size()
+                success_rate = (period_success / period_total * 100).fillna(0)
+                
+                # 創建成功率趨勢圖
+                fig_rate = go.Figure()
+                
+                fig_rate.add_trace(go.Scatter(
+                    x=success_rate.index,
+                    y=success_rate.values,
+                    mode='lines+markers',
+                    name='成功率',
+                    line=dict(color='#2196F3'),
+                    marker=dict(size=8)
+                ))
+                
+                # 添加目標線（80%）
+                fig_rate.add_shape(
                     type="line",
-                    x0=60, x1=60,
-                    y0=0, y1=day_data['total_line_number'].max(),
+                    x0=success_rate.index[0],
+                    x1=success_rate.index[-1],
+                    y0=80,
+                    y1=80,
                     line=dict(
                         color="red",
                         width=2,
-                        dash="dash"
+                        dash="dash",
                     )
                 )
                 
-                # 添加泡泡
-                fig.add_trace(go.Scatter(
-                    x=day_data['coverage_percentage'],
-                    y=day_data['total_line_number'],
-                    mode='markers+text',
-                    marker=dict(
-                        size=20,
-                        color='#1f77b4',
-                        opacity=0.7,
-                        line=dict(
-                            color='#ffffff',
-                            width=1
-                        )
-                    ),
-                    text=day_data['module_name'],
-                    textposition='top center',
-                    name='模組'
-                ))
-                
-                # 更新圖表布局
-                fig.update_layout(
-                    title=f'模組覆蓋率分析 ({selected_date.strftime("%Y-%m-%d")})',
-                    xaxis=dict(
-                        title='覆蓋率 (%)',
-                        range=[0, 100],  # X軸從0開始到100%
-                        showgrid=True
-                    ),
-                    yaxis=dict(
-                        title='總行數',
-                        range=[0, day_data['total_line_number'].max() * 1.1],  # Y軸從0開始，最大值加10%留空間
-                        showgrid=True
-                    ),
-                    showlegend=False,
-                    hovermode='closest'
+                # 更新布局
+                fig_rate.update_layout(
+                    title=f'Preflight WUT {time_unit}度成功率趨勢',
+                    xaxis_title=f'{time_unit}份',
+                    yaxis_title='成功率 (%)',
+                    yaxis=dict(range=[0, 100]),
+                    hovermode='x unified'
                 )
                 
-                # 添加網格線
-                fig.update_xaxes(gridwidth=1, gridcolor='LightGray')
-                fig.update_yaxes(gridwidth=1, gridcolor='LightGray')
+                st.plotly_chart(fig_rate, use_container_width=True)
+            
+            with wut_tab3:
+                # 創建失敗原因分析圖表
+                fail_data = filtered_preflight[filtered_preflight['type'] != 'pass'].copy()
                 
-                # 顯示圖表
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # 顯示數據表格
-                with st.expander("查看詳細數據"):
-                    summary_df = day_data[['module_name', 'coverage_percentage', 'total_line_number']].copy()
-                    summary_df.columns = ['模組名稱', '覆蓋率(%)', '總行數']
-                    summary_df['覆蓋率(%)'] = summary_df['覆蓋率(%)'].round(2)
-                    st.dataframe(summary_df.sort_values('覆蓋率(%)', ascending=False), use_container_width=True)
-                
-                # 在原有泡泡圖下方添加變化速率分析
-                with st.expander("覆蓋率變化分析"):
-                    # 計算前一天的數據
-                    prev_date = coverage_df[coverage_df['date'] < selected_date]['date'].max()
-                    prev_data = coverage_df[coverage_df['date'] == prev_date].copy()
+                if len(fail_data) > 0:
+                    # 計算每種失敗類型的數量
+                    fail_counts = fail_data['type'].value_counts()
                     
-                    if len(prev_data) > 0:
-                        # 合併當天和前一天的數據
-                        merged_data = pd.merge(
-                            day_data,
-                            prev_data[['module_name', 'coverage_percentage']],
-                            on='module_name',
-                            suffixes=('_current', '_prev')
-                        )
-                        
-                        # 計算變化
-                        merged_data['change'] = merged_data['coverage_percentage_current'] - merged_data['coverage_percentage_prev']
-                        
-                        # 創建瀑布圖
-                        fig_change = go.Figure()
-                        
-                        # 添加變化柱狀圖
-                        fig_change.add_trace(go.Bar(
-                            x=merged_data['module_name'],
-                            y=merged_data['change'],
-                            marker_color=merged_data['change'].apply(
-                                lambda x: '#2ecc71' if x > 0 else '#e74c3c'
-                            ),
-                            text=merged_data['change'].round(2),
-                            textposition='outside'
+                    # 創建圓餅圖
+                    fig_pie = go.Figure(data=[go.Pie(
+                        labels=fail_counts.index,
+                        values=fail_counts.values,
+                        hole=.3,
+                        marker_colors=['#FF5252', '#FFD740']
+                    )])
+                    
+                    fig_pie.update_layout(
+                        title='失敗原因分布',
+                        showlegend=True
+                    )
+                    
+                    # 顯示圓餅圖
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                    
+                    # 計算每日失敗比例趨勢
+                    daily_fails = fail_data.groupby(['date', 'type']).size().unstack(fill_value=0)
+                    daily_fails_pct = daily_fails.div(daily_fails.sum(axis=1), axis=0) * 100
+                    
+                    # 創建堆疊面積圖
+                    fig_trend = go.Figure()
+                    
+                    for fail_type in daily_fails_pct.columns:
+                        fig_trend.add_trace(go.Scatter(
+                            x=daily_fails_pct.index,
+                            y=daily_fails_pct[fail_type],
+                            name=fail_type,
+                            stackgroup='one',
+                            line=dict(width=0.5),
+                            hovertemplate='%{y:.1f}%'
                         ))
+                    
+                    fig_trend.update_layout(
+                        title='每日失敗原因分布趨勢',
+                        xaxis_title='日期',
+                        yaxis_title='比例 (%)',
+                        hovermode='x unified',
+                        showlegend=True
+                    )
+                    
+                    st.plotly_chart(fig_trend, use_container_width=True)
+                    
+                else:
+                    st.info("在選定的時間範圍內沒有失敗記錄")
+            
+            with wut_tab4:
+                # 添加時間維度選擇
+                time_dimension = st.selectbox(
+                    "選擇時間維度",
+                    ["小時分布", "星期分布"],
+                    key="time_dimension"
+                )
+                
+                if time_dimension == "小時分布":
+                    # 提取小時資訊
+                    filtered_preflight['hour'] = filtered_preflight['date'].dt.hour
+                    time_data = filtered_preflight.groupby(['hour', 'type']).size().unstack(fill_value=0)
+                    
+                    # 創建熱力圖數據
+                    hours = list(range(24))
+                    types = ['pass', 'build_fail', 'wut_fail']
+                    heatmap_data = np.zeros((24, len(types)))
+                    
+                    for i, hour in enumerate(hours):
+                        if hour in time_data.index:
+                            for j, type_name in enumerate(types):
+                                if type_name in time_data.columns:
+                                    heatmap_data[i, j] = time_data.loc[hour, type_name]
+                    
+                    # 創建熱力圖
+                    fig_heatmap = go.Figure(data=go.Heatmap(
+                        z=heatmap_data,
+                        x=types,
+                        y=[f"{h:02d}:00" for h in hours],
+                        colorscale='YlOrRd',
+                        hoverongaps=False
+                    ))
+                    
+                    fig_heatmap.update_layout(
+                        title='每小時測試結果分布',
+                        xaxis_title='測試結果',
+                        yaxis_title='時間',
+                        height=800
+                    )
+                    
+                else:  # 星期分布
+                    # 提取星期資訊
+                    filtered_preflight['weekday'] = filtered_preflight['date'].dt.day_name()
+                    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                    weekday_map = {
+                        'Monday': '週一',
+                        'Tuesday': '週二',
+                        'Wednesday': '週三',
+                        'Thursday': '週四',
+                        'Friday': '週五',
+                        'Saturday': '週六',
+                        'Sunday': '週日'
+                    }
+                    filtered_preflight['weekday_zh'] = filtered_preflight['weekday'].map(weekday_map)
+                    
+                    # 計算每個星期幾的數據
+                    weekday_data = filtered_preflight.groupby(['weekday_zh', 'type']).size().unstack(fill_value=0)
+                    weekday_data = weekday_data.reindex([weekday_map[day] for day in weekday_order])
+                    
+                    # 創建熱力圖
+                    fig_heatmap = go.Figure(data=go.Heatmap(
+                        z=weekday_data.values,
+                        x=['通過', '建置失敗', 'WUT失敗'],
+                        y=weekday_data.index,
+                        colorscale='YlOrRd',
+                        hoverongaps=False
+                    ))
+                    
+                    fig_heatmap.update_layout(
+                        title='每週測試結果分布',
+                        xaxis_title='測試結果',
+                        yaxis_title='星期',
+                        height=400
+                    )
+                
+                st.plotly_chart(fig_heatmap, use_container_width=True)
+                
+                # 添加統計摘要
+                with st.expander("查看時間分布統計"):
+                    if time_dimension == "小時分布":
+                        hour_stats = filtered_preflight.groupby('hour').size()
+                        peak_hour = hour_stats.idxmax()
+                        quiet_hour = hour_stats.idxmin()
                         
-                        # 更新布局
-                        fig_change.update_layout(
-                            title=f'模組覆蓋率日變化 ({prev_date.strftime("%Y-%m-%d")} → {selected_date.strftime("%Y-%m-%d")})',
-                            xaxis_title='模組名稱',
-                            yaxis_title='覆蓋率變化 (%)',
-                            showlegend=False,
-                            yaxis=dict(zeroline=True)
-                        )
+                        st.markdown(f"""
+                            ### 時間分布統計
+                            - 最活躍時段：{peak_hour:02d}:00 ({hour_stats[peak_hour]} 次測試)
+                            - 最不活躍時段：{quiet_hour:02d}:00 ({hour_stats[quiet_hour]} 次測試)
+                            - 平均每小時測試次數：{hour_stats.mean():.1f}
+                        """)
+                    else:
+                        weekday_stats = filtered_preflight.groupby('weekday_zh').size()
+                        peak_day = weekday_stats.idxmax()
+                        quiet_day = weekday_stats.idxmin()
                         
-                        st.plotly_chart(fig_change, use_container_width=True)
-                        
-                        # 顯示變化統計
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("最大增長", f"{merged_data['change'].max():.2f}%",
-                                    delta=merged_data.loc[merged_data['change'].idxmax(), 'module_name'])
-                        with col2:
-                            st.metric("最大下降", f"{merged_data['change'].min():.2f}%",
-                                    delta=merged_data.loc[merged_data['change'].idxmin(), 'module_name'])
-                        with col3:
-                            st.metric("平均變化", f"{merged_data['change'].mean():.2f}%")
-            else:
-                st.warning(f"在 {selected_date.strftime('%Y-%m-%d')} 沒有找到覆蓋率數據")
-        else:
-            st.info("此專案無模組覆蓋率數據")
-
+                        st.markdown(f"""
+                            ### 星期分布統計
+                            - 最活躍星期：{peak_day} ({weekday_stats[peak_day]} 次測試)
+                            - 最不活躍星期：{quiet_day} ({weekday_stats[quiet_day]} 次測試)
+                            - 平均每天測試次數：{weekday_stats.mean():.1f}
+                        """)
+            
+            # 顯示統計摘要
+            with st.expander("查看整體統計摘要"):
+                total_tests = len(filtered_preflight)
+                pass_count = len(filtered_preflight[filtered_preflight['type'] == 'pass'])
+                build_fail_count = len(filtered_preflight[filtered_preflight['type'] == 'build_fail'])
+                wut_fail_count = len(filtered_preflight[filtered_preflight['type'] == 'wut_fail'])
+                pass_rate = (pass_count / total_tests * 100) if total_tests > 0 else 0
+                
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric(
+                        "總測試次數",
+                        f"{total_tests:,}",
+                        delta=None
+                    )
+                
+                with col2:
+                    st.metric(
+                        "通過次數",
+                        f"{pass_count:,}",
+                        delta=f"{pass_rate:.1f}%"
+                    )
+                
+                with col3:
+                    st.metric(
+                        "建置失敗",
+                        f"{build_fail_count:,}",
+                        delta=f"{(build_fail_count/total_tests*100):.1f}%" if total_tests > 0 else "0%"
+                    )
+                
+                with col4:
+                    st.metric(
+                        "WUT失敗",
+                        f"{wut_fail_count:,}",
+                        delta=f"{(wut_fail_count/total_tests*100):.1f}%" if total_tests > 0 else "0%"
+                    )
+    
     # 返回主頁面按鈕
     if st.button('返回主頁面'):
         st.switch_page("pages/main.py")
