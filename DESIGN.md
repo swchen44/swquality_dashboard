@@ -4,163 +4,167 @@
 ```mermaid
 graph TD
     A[主儀表板] -->|選擇專案| B(專案詳情頁)
-    A --> C[資料處理層]
-    B --> C
-    C -->|讀取| D[(專案資料)]
-    D -->|包含| E[配置檔]
-    D -->|包含| F[覆蓋率數據]
-    D -->|包含| G[測試結果]
-    H[使用者介面] -->|互動| A
-    H -->|篩選| I[時間範圍]
-    H -->|切換| J[主題設定]
+    B -->|分析| C[品質指標]
+    B -->|分析| D[模組覆蓋率]
+    B -->|分析| E[Preflight WUT]
+    C -->|展示| F[趨勢圖表]
+    D -->|展示| G[覆蓋率分析]
+    E -->|展示| H[測試結果分析]
+    I[資料處理層] -->|讀取| J[(專案資料)]
+    J -->|包含| K[專案配置]
+    J -->|包含| L[覆蓋率數據]
+    J -->|包含| M[WUT結果]
+    N[篩選控制] -->|時間範圍| B
 ```
 
-## 2. 技術架構
+## 2. 頁面布局
+
+### 2.1 主頁面 (main.py)
+- 專案清單展示
+- 專案狀態概覽
+- 快速導航功能
+
+### 2.2 專案詳情頁面 (project.py)
+#### 頂部區域
+- 專案標題
+- 專案描述
+- 時間範圍選擇器（側邊欄）
+
+#### 關鍵指標區
+- 測試執行數
+- 測試通過數
+- 通過率
+- 開放缺陷數
+- 嚴重缺陷
+- 代碼覆蓋率
+
+#### 分析頁籤
+1. 品質指標趨勢
+   - 通過率和覆蓋率趨勢圖
+
+2. 模組覆蓋率
+   - 覆蓋率趨勢圖
+   - 覆蓋率統計摘要（展開面板）
+   - 覆蓋率區間趨勢（展開面板）
+   - 覆蓋率熱力圖（展開面板）
+   - 週期性分析（展開面板）
+
+3. Preflight WUT 分析
+   - 每日分析（堆疊長條圖）
+   - 累積趨勢分析（面積圖）
+     * 日/週/月累積趨勢
+     * 成功率趨勢
+     * 失敗率趨勢
+   - 失敗原因分析
+     * 失敗類型分布（圓餅圖）
+     * 失敗趨勢（堆疊面積圖）
+   - 時間分布分析
+     * 小時分布（熱力圖）
+     * 星期分布（熱力圖）
+
+#### 日趨勢分析區
+1. 單日模組覆蓋率
+   - 堆疊直條圖
+   - 詳細數據表格
+
+2. 單日模組覆蓋率分析
+   - 泡泡圖
+   - 變化速率分析
+
+## 3. 技術架構
 | 層級 | 技術選擇 | 說明 |
 |------|----------|------|
-| 前端框架 | Streamlit 1.28+ | 快速構建數據應用 |
-| 數據處理 | Pandas 2.0+ | 高效數據操作與分析 |
-| 視覺化 | Plotly 5.15+ | 互動式圖表 |
-| 數據存儲 | CSV/JSON | 本地文件存儲 |
-| 版本控制 | Git | 代碼版本管理 |
-| 測試框架 | Pytest | 單元測試與整合測試 |
-| 日誌系統 | Python logging | 應用日誌記錄 |
+| 前端框架 | Streamlit | 資料應用開發框架 |
+| 數據處理 | Pandas | 數據分析與處理 |
+| 視覺化 | Plotly | 互動式圖表庫 |
+| 數據存儲 | CSV/JSON | 本地文件儲存 |
+| 配置管理 | JSON | 專案設定檔 |
 
-## 3. 核心模組設計
+## 4. 數據結構
 
-### 3.1 數據處理層
-```python
-# 模組職責：
-# - 數據載入與驗證
-# - 指標計算
-# - 數據轉換
-
-class DataProcessor:
-    def load_project_data(self, project_id: str) -> pd.DataFrame:
-        """載入專案數據"""
-        pass
-
-    def calculate_metrics(self, df: pd.DataFrame) -> Dict:
-        """計算品質指標"""
-        pass
-
-    def transform_for_visualization(self, data: Dict) -> Dict:
-        """數據可視化轉換"""
-        pass
-```
-
-### 3.2 視圖層
-```python
-# 模組職責：
-# - 頁面路由
-# - 數據展示
-# - 使用者互動
-
-class DashboardView:
-    def render_overview(self, projects: List[str]):
-        """渲染總覽頁面"""
-        pass
-
-    def render_project_detail(self, project_id: str):
-        """渲染專案詳情"""
-        pass
-
-    def handle_user_interaction(self, event: Dict):
-        """處理使用者互動"""
-        pass
-```
-
-### 3.3 配置管理
-```python
-# 模組職責：
-# - 讀取配置
-# - 參數驗證
-# - 動態更新
-
-class ConfigManager:
-    def load_config(self, project_id: str) -> Dict:
-        """載入專案配置"""
-        pass
-
-    def validate_config(self, config: Dict) -> bool:
-        """驗證配置有效性"""
-        pass
-
-    def update_config(self, project_id: str, updates: Dict):
-        """更新專案配置"""
-        pass
-```
-
-## 4. 資料流程
-```mermaid
-sequenceDiagram
-    participant User
-    participant UI
-    participant DataProcessor
-    participant Storage
-    
-    User->>UI: 選擇專案和時間範圍
-    UI->>DataProcessor: 請求數據處理
-    DataProcessor->>Storage: 讀取原始數據
-    Storage-->>DataProcessor: 返回數據
-    DataProcessor->>DataProcessor: 計算指標
-    DataProcessor-->>UI: 返回處理結果
-    UI->>UI: 更新視圖
-    UI-->>User: 展示結果
-```
-
-## 5. 系統配置
-
-### 5.1 專案配置結構
+### 4.1 專案配置 (config.json)
 ```json
 {
+    "description": "專案描述",
     "metrics": {
-        "測試通過率": {
-            "threshold": 90,
+        "Test_Executed": {
+            "threshold": 100,
             "higher_better": true
         },
-        "代碼覆蓋率": {
+        "Pass_Rate(%)": {
             "threshold": 80,
             "higher_better": true
+        },
+        "Code_Coverage": {
+            "threshold": 60,
+            "higher_better": true
         }
-    },
-    "weights": {
-        "測試通過率": 0.4,
-        "代碼覆蓋率": 0.6
     }
 }
 ```
 
-### 5.2 日誌配置
-- 日誌級別: DEBUG, INFO, WARNING, ERROR
-- 日誌輪轉: 每日建立新檔案
-- 保留期限: 7天
+### 4.2 模組覆蓋率數據 (module_coverage.csv)
+- date: 日期
+- module_name: 模組名稱
+- covered_line_number: 已覆蓋行數
+- total_line_number: 總行數
+- coverage_percentage: 覆蓋率百分比
 
-## 6. 部署架構
+### 4.3 Preflight WUT結果 (preflight_wut_result.csv)
+- date: 日期
+- type: 結果類型 (pass/build_fail/wut_fail)
 
-### 6.1 開發環境
-- 本機 Streamlit 伺服器
-- 虛擬環境隔離
-- 即時重載支援
+### 4.4 品質指標數據 (sample_qa_dashboard.csv)
+- Date: 日期
+- Test_Executed: 測試執行數
+- Test_Passed: 測試通過數
+- Pass_Rate(%): 通過率
+- Open_Bugs: 開放缺陷數
+- Critical_Bugs: 嚴重缺陷數
+- Code_Coverage: 代碼覆蓋率
 
-### 6.2 生產環境
-- Docker 容器化部署
-- 反向代理配置
-- 資源使用限制
+## 5. 數據處理流程
 
-### 6.3 監控方案
-- 應用日誌分析
-- 性能指標收集
-- 錯誤追蹤
+### 5.1 數據讀取
+- 使用 pandas 讀取 CSV 文件
+- 日期時間格式轉換
+- 數據有效性驗證
 
-## 7. 安全性考慮
-- 數據讀取權限控制
-- 配置文件存取限制
-- 敏感資訊加密
-- 輸入驗證與清理
+### 5.2 數據轉換
+- 時間維度轉換（日/週/月）
+- 數據聚合與統計
+- 指標計算
 
-## 8. 擴展性設計
-- 模組化架構
-- 插件系統支援
-- 外部系統整合接口
-- 客製化視圖支援
+### 5.3 視覺化處理
+- 數據格式轉換
+- 圖表配置優化
+- 交互功能實現
+
+## 6. 擴展性設計
+
+### 6.1 新增專案支援
+- 標準化數據格式
+- 配置文件模板
+- 自動化數據驗證
+
+### 6.2 新增分析維度
+- 模組化的圖表組件
+- 可配置的指標定義
+- 靈活的數據轉換器
+
+### 6.3 客製化支援
+- 可配置的閾值
+- 自定義視覺主題
+- 靈活的布局調整
+
+## 7. 性能優化
+
+### 7.1 數據處理優化
+- 數據快取機制
+- 延遲加載策略
+- 數據預處理
+
+### 7.2 視覺化優化
+- 數據採樣
+- 動態加載
+- 圖表重用

@@ -321,14 +321,14 @@ def show_project_page():
         # 載入 preflight_wut 數據
         preflight_data = load_preflight_wut_data(project)
         if preflight_data is not None:
-            # 過濾日期範圍
+            # 使用 pandas datetime 過濾指定日期範圍的數據
             mask = (
                 (preflight_data['date'] >= pd.to_datetime(start_date)) & 
                 (preflight_data['date'] <= pd.to_datetime(end_date))
             )
             filtered_preflight = preflight_data[mask]
             
-            # 創建子標籤頁
+            # 創建子標籤頁以組織不同類型的分析圖表
             wut_tab1, wut_tab2, wut_tab3, wut_tab4 = st.tabs([
                 "每日分析", 
                 "累積趨勢分析",
@@ -337,46 +337,51 @@ def show_project_page():
             ])
             
             with wut_tab1:
-                # 計算每日各類型的數量
+                # 使用 groupby 和 size 計算每日各類型的測試數量
+                # unstack 將 type 轉為列，方便繪製堆疊圖
                 daily_counts = filtered_preflight.groupby(['date', 'type']).size().unstack(fill_value=0)
                 
-                # 確保所有類型都存在
+                # 確保所有測試結果類型都存在，避免繪圖錯誤
                 for col in ['build_fail', 'wut_fail', 'pass']:
                     if col not in daily_counts.columns:
                         daily_counts[col] = 0
                 
-                # 生成堆疊長條圖
+                # 使用 plotly express 繪製堆疊長條圖
+                # barmode='stack' 實現堆疊效果
                 fig = px.bar(
                     daily_counts,
                     title=f'{project} Preflight WUT 每日測試結果',
                     labels={'value': '數量', 'date': '日期', 'type': '狀態'},
                     color_discrete_map={
-                        'build_fail': '#FF5252',  # 紅色
-                        'wut_fail': '#FFD740',    # 黃色
-                        'pass': '#4CAF50'         # 綠色
+                        'build_fail': '#FF5252',  # 使用紅色表示建置失敗
+                        'wut_fail': '#FFD740',    # 使用黃色表示測試失敗
+                        'pass': '#4CAF50'         # 使用綠色表示通過
                     },
-                    barmode='stack'
+                    barmode='stack'  # 設置為堆疊模式
                 )
                 
-                # 更新圖表樣式
+                # 更新圖表布局，優化顯示效果
                 fig.update_layout(
                     xaxis_title='日期',
                     yaxis_title='測試次數',
                     legend_title='測試結果',
-                    hovermode='x unified'
+                    hovermode='x unified'  # 統一顯示懸停提示
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
             
             with wut_tab2:
-                # 創建時間維度選擇器
+                # 創建時間維度選擇器，支援日/週/月的趨勢分析
                 time_unit = st.selectbox(
                     "選擇時間維度",
                     ["日", "週", "月"],
                     key="wut_time_unit"
                 )
                 
-                # 根據選擇的時間維度進行數據重組
+                # 根據選擇的時間維度使用 strftime 格式化日期
+                # %Y-W%U: 年份-週數
+                # %Y-%m: 年份-月份
+                # %Y-%m-%d: 年份-月份-日期
                 if time_unit == "週":
                     filtered_preflight['period'] = filtered_preflight['date'].dt.strftime('%Y-W%U')
                 elif time_unit == "月":
@@ -384,18 +389,19 @@ def show_project_page():
                 else:
                     filtered_preflight['period'] = filtered_preflight['date'].dt.strftime('%Y-%m-%d')
                 
-                # 計算累積數據
+                # 計算累積數據：先按期間和類型分組計數，再進行累積加總
                 cumulative_data = filtered_preflight.groupby(['period', 'type']).size().unstack(fill_value=0).cumsum()
                 
-                # 確保所有類型都存在
+                # 確保所有結果類型存在
                 for col in ['build_fail', 'wut_fail', 'pass']:
                     if col not in cumulative_data.columns:
                         cumulative_data[col] = 0
                 
-                # 創建累積面積圖
+                # 使用 plotly graph_objects 創建累積面積圖
                 fig_cum = go.Figure()
                 
-                # 添加各類型的累積面積
+                # 依序添加各類型的累積面積
+                # 使用 fill='tonexty' 創建堆疊效果
                 fig_cum.add_trace(go.Scatter(
                     x=cumulative_data.index,
                     y=cumulative_data['pass'],
@@ -405,6 +411,7 @@ def show_project_page():
                     line=dict(color='#4CAF50')
                 ))
                 
+                # 添加 WUT失敗 曲線，y值為 WUT失敗+通過 的累積和
                 fig_cum.add_trace(go.Scatter(
                     x=cumulative_data.index,
                     y=cumulative_data['wut_fail'] + cumulative_data['pass'],
@@ -414,6 +421,7 @@ def show_project_page():
                     line=dict(color='#FFD740')
                 ))
                 
+                # 添加建置失敗曲線，y值為三種狀態的累積和
                 fig_cum.add_trace(go.Scatter(
                     x=cumulative_data.index,
                     y=cumulative_data['build_fail'] + cumulative_data['wut_fail'] + cumulative_data['pass'],
@@ -434,23 +442,27 @@ def show_project_page():
                 st.plotly_chart(fig_cum, use_container_width=True)
                 
                 # 計算成功率趨勢
+                # 1. 計算每個時間週期的總測試次數
                 period_total = filtered_preflight.groupby('period').size()
+                # 2. 計算每個時間週期的成功次數
                 period_success = filtered_preflight[filtered_preflight['type'] == 'pass'].groupby('period').size()
+                # 3. 計算成功率百分比
                 success_rate = (period_success / period_total * 100).fillna(0)
                 
                 # 創建成功率趨勢圖
                 fig_rate = go.Figure()
                 
+                # 添加成功率曲線，使用點線結合的方式展示
                 fig_rate.add_trace(go.Scatter(
                     x=success_rate.index,
                     y=success_rate.values,
-                    mode='lines+markers',
+                    mode='lines+markers',  # 同時顯示線條和標記點
                     name='成功率',
                     line=dict(color='#2196F3'),
                     marker=dict(size=8)
                 ))
                 
-                # 添加目標線（80%）
+                # 添加80%的目標參考線
                 fig_rate.add_shape(
                     type="line",
                     x0=success_rate.index[0],
@@ -460,7 +472,7 @@ def show_project_page():
                     line=dict(
                         color="red",
                         width=2,
-                        dash="dash",
+                        dash="dash",  # 使用虛線樣式
                     )
                 )
                 
@@ -469,17 +481,20 @@ def show_project_page():
                     title=f'Preflight WUT {time_unit}度成功率趨勢',
                     xaxis_title=f'{time_unit}份',
                     yaxis_title='成功率 (%)',
-                    yaxis=dict(range=[0, 100]),
+                    yaxis=dict(range=[0, 100]),  # 設置y軸範圍為0-100%
                     hovermode='x unified'
                 )
                 
                 st.plotly_chart(fig_rate, use_container_width=True)
-                
+
                 # 計算失敗率趨勢
+                # 1. 計算每個時間週期的總數
                 total_by_period = filtered_preflight.groupby('period').size()
+                # 2. 分別計算兩種失敗類型的次數
                 build_fail_by_period = filtered_preflight[filtered_preflight['type'] == 'build_fail'].groupby('period').size()
                 wut_fail_by_period = filtered_preflight[filtered_preflight['type'] == 'wut_fail'].groupby('period').size()
                 
+                # 3. 計算失敗率
                 build_fail_rate = (build_fail_by_period / total_by_period * 100).fillna(0)
                 wut_fail_rate = (wut_fail_by_period / total_by_period * 100).fillna(0)
                 
@@ -518,19 +533,19 @@ def show_project_page():
                 st.plotly_chart(fig_fail_rate, use_container_width=True)
             
             with wut_tab3:
-                # 創建失敗原因分析圖表
+                # 篩選出所有失敗記錄進行分析
                 fail_data = filtered_preflight[filtered_preflight['type'] != 'pass'].copy()
                 
                 if len(fail_data) > 0:
-                    # 計算每種失敗類型的數量
+                    # 計算每種失敗類型的數量分布
                     fail_counts = fail_data['type'].value_counts()
                     
-                    # 創建圓餅圖
+                    # 創建圓餅圖展示失敗類型分布
                     fig_pie = go.Figure(data=[go.Pie(
                         labels=fail_counts.index,
                         values=fail_counts.values,
-                        hole=.3,
-                        marker_colors=['#FF5252', '#FFD740']
+                        hole=.3,  # 設置中心孔洞比例，創建環形圖效果
+                        marker_colors=['#FF5252', '#FFD740']  # 使用一致的顏色方案
                     )])
                     
                     fig_pie.update_layout(
@@ -538,14 +553,15 @@ def show_project_page():
                         showlegend=True
                     )
                     
-                    # 顯示圓餅圖
                     st.plotly_chart(fig_pie, use_container_width=True)
                     
                     # 計算每日失敗比例趨勢
+                    # 1. 按日期和失敗類型分組計數
                     daily_fails = fail_data.groupby(['date', 'type']).size().unstack(fill_value=0)
+                    # 2. 計算每日各類型失敗的比例
                     daily_fails_pct = daily_fails.div(daily_fails.sum(axis=1), axis=0) * 100
                     
-                    # 創建堆疊面積圖
+                    # 創建堆疊面積圖展示失敗類型的比例變化
                     fig_trend = go.Figure()
                     
                     for fail_type in daily_fails_pct.columns:
@@ -553,9 +569,9 @@ def show_project_page():
                             x=daily_fails_pct.index,
                             y=daily_fails_pct[fail_type],
                             name=fail_type,
-                            stackgroup='one',
+                            stackgroup='one',  # 設置堆疊組
                             line=dict(width=0.5),
-                            hovertemplate='%{y:.1f}%'
+                            hovertemplate='%{y:.1f}%'  # 設置懸停顯示格式
                         ))
                     
                     fig_trend.update_layout(
@@ -572,7 +588,7 @@ def show_project_page():
                     st.info("在選定的時間範圍內沒有失敗記錄")
             
             with wut_tab4:
-                # 添加時間維度選擇
+                # 添加時間維度選擇器
                 time_dimension = st.selectbox(
                     "選擇時間維度",
                     ["小時分布", "星期分布"],
@@ -580,15 +596,16 @@ def show_project_page():
                 )
                 
                 if time_dimension == "小時分布":
-                    # 提取小時資訊
+                    # 提取小時資訊並計算分布
                     filtered_preflight['hour'] = filtered_preflight['date'].dt.hour
                     time_data = filtered_preflight.groupby(['hour', 'type']).size().unstack(fill_value=0)
                     
-                    # 創建熱力圖數據
+                    # 創建24小時 x 3種狀態的熱力圖數據矩陣
                     hours = list(range(24))
                     types = ['pass', 'build_fail', 'wut_fail']
                     heatmap_data = np.zeros((24, len(types)))
                     
+                    # 填充熱力圖數據
                     for i, hour in enumerate(hours):
                         if hour in time_data.index:
                             for j, type_name in enumerate(types):
@@ -600,7 +617,7 @@ def show_project_page():
                         z=heatmap_data,
                         x=types,
                         y=[f"{h:02d}:00" for h in hours],
-                        colorscale='YlOrRd',
+                        colorscale='YlOrRd',  # 使用黃紅配色方案
                         hoverongaps=False
                     ))
                     
@@ -612,7 +629,7 @@ def show_project_page():
                     )
                     
                 else:  # 星期分布
-                    # 提取星期資訊
+                    # 提取星期資訊並進行中文對應
                     filtered_preflight['weekday'] = filtered_preflight['date'].dt.day_name()
                     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                     weekday_map = {
@@ -626,11 +643,12 @@ def show_project_page():
                     }
                     filtered_preflight['weekday_zh'] = filtered_preflight['weekday'].map(weekday_map)
                     
-                    # 計算每個星期幾的數據
+                    # 計算每個星期幾的測試結果分布
                     weekday_data = filtered_preflight.groupby(['weekday_zh', 'type']).size().unstack(fill_value=0)
+                    # 按照週一到週日的順序重新排序
                     weekday_data = weekday_data.reindex([weekday_map[day] for day in weekday_order])
                     
-                    # 創建熱力圖
+                    # 創建星期熱力圖
                     fig_heatmap = go.Figure(data=go.Heatmap(
                         z=weekday_data.values,
                         x=['通過', '建置失敗', 'WUT失敗'],
@@ -651,6 +669,7 @@ def show_project_page():
                 # 添加統計摘要
                 with st.expander("查看時間分布統計"):
                     if time_dimension == "小時分布":
+                        # 計算小時維度的統計數據
                         hour_stats = filtered_preflight.groupby('hour').size()
                         peak_hour = hour_stats.idxmax()
                         quiet_hour = hour_stats.idxmin()
@@ -662,6 +681,7 @@ def show_project_page():
                             - 平均每小時測試次數：{hour_stats.mean():.1f}
                         """)
                     else:
+                        # 計算星期維度的統計數據
                         weekday_stats = filtered_preflight.groupby('weekday_zh').size()
                         peak_day = weekday_stats.idxmax()
                         quiet_day = weekday_stats.idxmin()
@@ -672,16 +692,19 @@ def show_project_page():
                             - 平均每天測試次數：{weekday_stats.mean():.1f}
                         """)
             
-            # 顯示統計摘要
+            # 顯示整體統計摘要
             with st.expander("查看整體統計摘要"):
+                # 計算關鍵指標
                 total_tests = len(filtered_preflight)
                 pass_count = len(filtered_preflight[filtered_preflight['type'] == 'pass'])
                 build_fail_count = len(filtered_preflight[filtered_preflight['type'] == 'build_fail'])
                 wut_fail_count = len(filtered_preflight[filtered_preflight['type'] == 'wut_fail'])
                 pass_rate = (pass_count / total_tests * 100) if total_tests > 0 else 0
                 
+                # 使用 st.columns 創建四欄式布局
                 col1, col2, col3, col4 = st.columns(4)
                 
+                # 顯示各項指標及其比例
                 with col1:
                     st.metric(
                         "總測試次數",
@@ -709,8 +732,7 @@ def show_project_page():
                         f"{wut_fail_count:,}",
                         delta=f"{(wut_fail_count/total_tests*100):.1f}%" if total_tests > 0 else "0%"
                     )
-    
-    
+
 # 顯示趨勢圖表
     st.divider()
     st.subheader('日趨勢分析')
